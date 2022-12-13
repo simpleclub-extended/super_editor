@@ -249,7 +249,7 @@ class AttributedTextMarkdownSerializer extends AttributionVisitor {
 
     // Add end markers.
     if (endingAttributions.isNotEmpty) {
-      final markdownStyles = _sortAndSerializeAttributions(endingAttributions, AttributionVisitEvent.end);
+      final markdownStyles = _sortAndSerializeAttributions(endingAttributions, AttributionVisitEvent.end, atEnd: true);
       // Links are different from the plain styles since they are both not NamedAttributions (and therefore
       // can't be checked using equality comparison) and asymmetrical in markdown.
       final linkMarker = _encodeLinkMarker(endingAttributions, AttributionVisitEvent.end);
@@ -293,13 +293,18 @@ class AttributedTextMarkdownSerializer extends AttributionVisitor {
   /// Serializes style attributions into markdown syntax in a repeatable
   /// order such that opening and closing styles match each other on
   /// the opening and closing ends of a span.
-  static String _sortAndSerializeAttributions(Set<Attribution> attributions, AttributionVisitEvent event) {
+  ///
+  /// [atEnd] is passed `true` when serialization needed for the end position
+  /// of the attribution.
+  static String _sortAndSerializeAttributions(Set<Attribution> attributions, AttributionVisitEvent event,
+      {bool atEnd = false}) {
     const startOrder = [
       codeAttribution,
       boldAttribution,
       italicsAttribution,
       strikethroughAttribution,
       underlineAttribution,
+      texAttribution,
     ];
 
     final buffer = StringBuffer();
@@ -307,14 +312,14 @@ class AttributedTextMarkdownSerializer extends AttributionVisitor {
 
     for (final markdownStyleAttribution in encodingOrder) {
       if (attributions.contains(markdownStyleAttribution)) {
-        buffer.write(_encodeMarkdownStyle(markdownStyleAttribution));
+        buffer.write(_encodeMarkdownStyle(markdownStyleAttribution, atEnd: atEnd));
       }
     }
 
     return buffer.toString();
   }
 
-  static String _encodeMarkdownStyle(Attribution attribution) {
+  static String _encodeMarkdownStyle(Attribution attribution, {bool atEnd = false}) {
     if (attribution == codeAttribution) {
       return '`';
     } else if (attribution == boldAttribution) {
@@ -325,6 +330,8 @@ class AttributedTextMarkdownSerializer extends AttributionVisitor {
       return '~';
     } else if (attribution == underlineAttribution) {
       return '¬';
+    } else if (attribution == texAttribution) {
+      return atEnd ? ' \$' : '\$ ';
     } else {
       return '';
     }

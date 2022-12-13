@@ -36,6 +36,14 @@ const strikethroughAttribution = NamedAttribution('strikethrough');
 /// Code style attribution.
 const codeAttribution = NamedAttribution('code');
 
+/// TeX attribution.
+///
+/// This is a custom simpleclub attribution.
+/// Its styling must be handled on the package user level.
+///
+/// In case of simpleclub, styling of TeX is handled in "shared".
+const texAttribution = NamedAttribution('tex');
+
 /// Attribution to be used within [AttributedText] to
 /// represent a link.
 ///
