@@ -23,7 +23,7 @@ MutableDocument deserializeMarkdownToDocument(
   List<md.BlockSyntax> customBlockSyntax = const [],
   List<ElementToNodeConverter> customElementToNodeConverters = const [],
   List<md.InlineSyntax> customInlineSyntax = const [],
-  InlineMarkdownToDocument? customInlineMarkdownToDocument,
+  InlineMarkdownToDocument Function()? inlineMarkdownToDocumentBuilder,
 }) {
   final markdownLines = const LineSplitter().convert(markdown);
 
@@ -44,7 +44,7 @@ MutableDocument deserializeMarkdownToDocument(
   final nodeVisitor = _MarkdownToDocument(
     elementToNodeConverters: customElementToNodeConverters,
     customInlineSyntax: customInlineSyntax,
-    customInlineMarkdownToDocument: customInlineMarkdownToDocument,
+    inlineMarkdownToDocumentBuilder: inlineMarkdownToDocumentBuilder,
   );
   for (final node in markdownNodes) {
     node.accept(nodeVisitor);
@@ -76,12 +76,12 @@ class _MarkdownToDocument implements md.NodeVisitor {
   _MarkdownToDocument({
     this.elementToNodeConverters = const [],
     this.customInlineSyntax = const [],
-    this.customInlineMarkdownToDocument,
+    this.inlineMarkdownToDocumentBuilder,
   });
 
   final List<ElementToNodeConverter> elementToNodeConverters;
   final List<md.InlineSyntax> customInlineSyntax;
-  final InlineMarkdownToDocument? customInlineMarkdownToDocument;
+  final InlineMarkdownToDocument Function()? inlineMarkdownToDocumentBuilder;
 
   final _content = <DocumentNode>[];
 
@@ -318,7 +318,7 @@ class _MarkdownToDocument implements md.NodeVisitor {
         ],
       ),
     );
-    final inlineVisitor = customInlineMarkdownToDocument ?? InlineMarkdownToDocument();
+    final inlineVisitor = inlineMarkdownToDocumentBuilder?.call() ?? InlineMarkdownToDocument();
     final inlineNodes = inlineParser.parse();
     for (final inlineNode in inlineNodes) {
       inlineNode.accept(inlineVisitor);
