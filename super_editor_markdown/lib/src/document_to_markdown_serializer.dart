@@ -298,22 +298,48 @@ class AttributedTextMarkdownSerializer extends AttributionVisitor {
   /// of the attribution.
   static String _sortAndSerializeAttributions(Set<Attribution> attributions, AttributionVisitEvent event,
       {bool atEnd = false}) {
+    // Checks if attributions contains a SimpleclubColorAttribution.
+    //
+    // Called before or after other attributions in `startOrder` depending on atEnd.
+    // This is needed, because color attribution must wrap others.
+    void checkForColor(StringBuffer buffer) {
+      try {
+        final colorAttribution = attributions.firstWhere((attr) => attr is SimpleclubColorAttribution);
+        final colorIndex = (colorAttribution as SimpleclubColorAttribution).colorIndex;
+        final prefixOrSuffix = atEnd ? '}' : '\\color$colorIndex{';
+        buffer.write(prefixOrSuffix);
+      } catch (ex) {
+        // ignore.
+      }
+    }
+
     const startOrder = [
       codeAttribution,
       boldAttribution,
       italicsAttribution,
       strikethroughAttribution,
       underlineAttribution,
-      texAttribution,
     ];
 
     final buffer = StringBuffer();
     final encodingOrder = event == AttributionVisitEvent.start ? startOrder : startOrder.reversed;
 
+    if (!atEnd) {
+      checkForColor(buffer);
+    }
+    if (attributions.contains(simpleclubTeXAttribution)) {
+      buffer.write(_encodeMarkdownStyle(simpleclubTeXAttribution, atEnd: atEnd));
+
+      // TeX attribution can not be combined with any of other attributions.
+      return buffer.toString();
+    }
     for (final markdownStyleAttribution in encodingOrder) {
       if (attributions.contains(markdownStyleAttribution)) {
         buffer.write(_encodeMarkdownStyle(markdownStyleAttribution, atEnd: atEnd));
       }
+    }
+    if (atEnd) {
+      checkForColor(buffer);
     }
 
     return buffer.toString();
@@ -330,7 +356,7 @@ class AttributedTextMarkdownSerializer extends AttributionVisitor {
       return '~';
     } else if (attribution == underlineAttribution) {
       return '¬';
-    } else if (attribution == texAttribution) {
+    } else if (attribution == simpleclubTeXAttribution) {
       return atEnd ? ' \$' : '\$ ';
     } else {
       return '';
