@@ -198,6 +198,7 @@ class BlockquoteComponent extends StatelessWidget {
   Widget build(BuildContext context) {
     return IgnorePointer(
       child: Container(
+        margin: const EdgeInsets.only(top: 8),
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
           borderRadius: borderRadius,
