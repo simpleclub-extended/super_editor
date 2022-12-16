@@ -50,9 +50,11 @@ class CommonEditorOperations {
   // Marked as protected for extension methods and subclasses
   @protected
   final DocumentEditor editor;
+
   // Marked as protected for extension methods and subclasses
   @protected
   final DocumentComposer composer;
+
   // Marked as protected for extension methods and subclasses
   @protected
   final DocumentLayoutResolver documentLayoutResolver;
@@ -1511,6 +1513,53 @@ class CommonEditorOperations {
         id: node.id,
         text: adjustedText,
         metadata: {'blockType': blockquoteAttribution},
+      );
+
+      editor.executeCommand(
+        EditorCommandFunction((document, transaction) {
+          transaction.replaceNode(oldNode: node, newNode: newNode);
+        }),
+      );
+
+      // We removed some text at the beginning of the list item.
+      // Move the selection back by that same amount.
+      final textPosition = composer.selection!.extent.nodePosition as TextNodePosition;
+      composer.selection = DocumentSelection.collapsed(
+        position: DocumentPosition(
+          nodeId: node.id,
+          nodePosition: TextNodePosition(offset: textPosition.offset - startOfNewText),
+        ),
+      );
+
+      return true;
+    }
+
+    final headerMatch = RegExp(r'^#{1,6}\s$');
+    final hasHeaderMatch = headerMatch.hasMatch(textBeforeCaret);
+    if (hasHeaderMatch) {
+      final match = headerMatch.firstMatch(textBeforeCaret);
+      // Get header level depending on number of # signs, e.g:
+      // # - Header 1
+      // ###### - Header 6
+      final headerLevel = match?.group(0)!.trim().length;
+      final attribution = {
+        1: header1Attribution,
+        2: header2Attribution,
+        3: header3Attribution,
+        4: header4Attribution,
+        5: header5Attribution,
+        6: header6Attribution,
+      }[headerLevel]!;
+
+      int startOfNewText = textBeforeCaret.length;
+      while (startOfNewText < node.text.text.length && node.text.text[startOfNewText] == ' ') {
+        startOfNewText += 1;
+      }
+      final adjustedText = node.text.copyText(startOfNewText);
+      final newNode = ParagraphNode(
+        id: node.id,
+        text: adjustedText,
+        metadata: {'blockType': attribution},
       );
 
       editor.executeCommand(
