@@ -1469,7 +1469,7 @@ class CommonEditorOperations {
     }
 
     final hrMatch = RegExp(r'^---*\s$');
-    final hasHrMatch = hrMatch.hasMatch(textBeforeCaret);
+    final hasHrMatch = false;
     if (hasHrMatch) {
       editorOpsLog.fine('Paragraph has an HR match');
       // Insert an HR before this paragraph and then clear the
@@ -1531,6 +1531,10 @@ class CommonEditorOperations {
 
       return true;
     }
+
+    // No pattern match was found
+    editorOpsLog.fine("ParagraphNode didn't match any conversion pattern.");
+    return false;
 
     // URL match, e.g., images, social, etc.
     editorOpsLog.fine('Looking for URL match...');
