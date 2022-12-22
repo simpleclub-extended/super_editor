@@ -56,7 +56,7 @@ class SimpleclubColorAttribution implements Attribution {
   });
 
   @override
-  String get id => 'simpleclubColor';
+  String get id => 'simpleclubColor$colorIndex';
 
   /// Index of the color from 1 to 9.
   final int colorIndex;
