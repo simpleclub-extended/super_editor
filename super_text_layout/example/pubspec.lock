@@ -14,7 +14,7 @@ packages:
     description:
       path: attributed_text
       ref: simpleclub-stable-updated
-      resolved-ref: "542cd32da372f5769e72b085bdf6edff6e7a2e1a"
+      resolved-ref: "eaaeca472e2e36c92515997182276f3b68f3ae6e"
       url: "https://github.com/simpleclub-extended/super_editor"
     source: git
     version: "0.2.2"
