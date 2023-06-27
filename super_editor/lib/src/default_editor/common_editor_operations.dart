@@ -47,9 +47,11 @@ class CommonEditorOperations {
   // Marked as protected for extension methods and subclasses
   @protected
   final Document document;
+
   // Marked as protected for extension methods and subclasses
   @protected
   final Editor editor;
+
   // Marked as protected for extension methods and subclasses
   @protected
   final DocumentComposer composer;
@@ -1500,7 +1502,7 @@ class CommonEditorOperations {
 
   // TODO: refactor to make prefix matching extensible (#68)
   bool convertParagraphByPatternMatching(String nodeId) {
-    final node = editor.document.getNodeById(nodeId);
+    final node = document.getNodeById(nodeId);
     if (node == null) {
       return false;
     }
@@ -1513,7 +1515,7 @@ class CommonEditorOperations {
     final textSelection = composer.selection!.extent.nodePosition as TextNodePosition;
     final textBeforeCaret = text.text.substring(0, textSelection.offset);
 
-    final unorderedListItemMatch = RegExp(r'^\s*[\*-]\s+$');
+    final unorderedListItemMatch = RegExp(r'^\s*[*-]\s+$');
     final hasUnorderedListItemMatch = unorderedListItemMatch.hasMatch(textBeforeCaret);
 
     // We want to match "1. ", " 1. ", "1) ", " 1) ".
@@ -1532,52 +1534,25 @@ class CommonEditorOperations {
           ? ListItemNode.unordered(id: node.id, text: adjustedText)
           : ListItemNode.ordered(id: node.id, text: adjustedText);
 
-      editor.executeCommand(
-        EditorCommandFunction((document, transaction) {
-          transaction.replaceNode(oldNode: node, newNode: newNode);
-        }),
-      );
+      editor.execute([
+        ReplaceNodeRequest(existingNodeId: node.id, newNode: newNode),
+      ]);
 
       // We removed some text at the beginning of the list item.
       // Move the selection back by that same amount.
       final textPosition = composer.selection!.extent.nodePosition as TextNodePosition;
-      composer.selection = DocumentSelection.collapsed(
-        position: DocumentPosition(
-          nodeId: node.id,
-          nodePosition: TextNodePosition(offset: textPosition.offset - startOfNewText),
-        ),
-      );
-
-      return true;
-    }
-
-    final hrMatch = RegExp(r'^---*\s$');
-    final hasHrMatch = false;
-    if (hasHrMatch) {
-      editorOpsLog.fine('Paragraph has an HR match');
-      // Insert an HR before this paragraph and then clear the
-      // paragraph's content.
-      final paragraphNodeIndex = editor.document.getNodeIndexById(node.id);
-
-      editor.executeCommand(
-        EditorCommandFunction((document, transaction) {
-          transaction.insertNodeAt(
-            paragraphNodeIndex,
-            HorizontalRuleNode(
-              id: DocumentEditor.createNodeId(),
+      editor.execute([
+        ChangeSelectionRequest(
+          DocumentSelection.collapsed(
+            position: DocumentPosition(
+              nodeId: node.id,
+              nodePosition: TextNodePosition(offset: textPosition.offset - startOfNewText),
             ),
-          );
-        }),
-      );
-
-      node.text = node.text.removeRegion(startOffset: 0, endOffset: hrMatch.firstMatch(textBeforeCaret)!.end);
-
-      composer.selection = DocumentSelection.collapsed(
-        position: DocumentPosition(
-          nodeId: node.id,
-          nodePosition: const TextNodePosition(offset: 0),
+          ),
+          SelectionChangeType.insertContent,
+          SelectionReason.userInteraction,
         ),
-      );
+      ]);
 
       return true;
     }
@@ -1596,21 +1571,25 @@ class CommonEditorOperations {
         metadata: {'blockType': blockquoteAttribution},
       );
 
-      editor.executeCommand(
-        EditorCommandFunction((document, transaction) {
-          transaction.replaceNode(oldNode: node, newNode: newNode);
-        }),
-      );
+      editor.execute([
+        ReplaceNodeRequest(existingNodeId: node.id, newNode: newNode),
+      ]);
 
       // We removed some text at the beginning of the list item.
       // Move the selection back by that same amount.
       final textPosition = composer.selection!.extent.nodePosition as TextNodePosition;
-      composer.selection = DocumentSelection.collapsed(
-        position: DocumentPosition(
-          nodeId: node.id,
-          nodePosition: TextNodePosition(offset: textPosition.offset - startOfNewText),
+      editor.execute([
+        ChangeSelectionRequest(
+          DocumentSelection.collapsed(
+            position: DocumentPosition(
+              nodeId: node.id,
+              nodePosition: TextNodePosition(offset: textPosition.offset - startOfNewText),
+            ),
+          ),
+          SelectionChangeType.insertContent,
+          SelectionReason.userInteraction,
         ),
-      );
+      ]);
 
       return true;
     }
@@ -1632,21 +1611,25 @@ class CommonEditorOperations {
         metadata: {'blockType': attribution},
       );
 
-      editor.executeCommand(
-        EditorCommandFunction((document, transaction) {
-          transaction.replaceNode(oldNode: node, newNode: newNode);
-        }),
-      );
+      editor.execute([
+        ReplaceNodeRequest(existingNodeId: node.id, newNode: newNode),
+      ]);
 
       // We removed some text at the beginning of the list item.
       // Move the selection back by that same amount.
       final textPosition = composer.selection!.extent.nodePosition as TextNodePosition;
-      composer.selection = DocumentSelection.collapsed(
-        position: DocumentPosition(
-          nodeId: node.id,
-          nodePosition: TextNodePosition(offset: textPosition.offset - startOfNewText),
+      editor.execute([
+        ChangeSelectionRequest(
+          DocumentSelection.collapsed(
+            position: DocumentPosition(
+              nodeId: node.id,
+              nodePosition: TextNodePosition(offset: textPosition.offset - startOfNewText),
+            ),
+          ),
+          SelectionChangeType.insertContent,
+          SelectionReason.userInteraction,
         ),
-      );
+      ]);
 
       return true;
     }
@@ -1697,52 +1680,25 @@ class CommonEditorOperations {
         text: adjustedText,
       );
 
-      editor.executeCommand(
-        EditorCommandFunction((document, transaction) {
-          transaction.replaceNode(oldNode: node, newNode: texNode);
-        }),
-      );
+      editor.execute([
+        ReplaceNodeRequest(existingNodeId: node.id, newNode: texNode),
+      ]);
 
       // Move the cursor back to the initial position, but 4 symbols back (because we removed `$_` and `_$`).
       final textPosition = composer.selection!.extent.nodePosition as TextNodePosition;
-      composer.selection = DocumentSelection.collapsed(
-        position: DocumentPosition(
-          nodeId: node.id,
-          nodePosition: TextNodePosition(offset: textPosition.offset - 4),
+      editor.execute([
+        ChangeSelectionRequest(
+          DocumentSelection.collapsed(
+            position: DocumentPosition(
+              nodeId: node.id,
+              nodePosition: TextNodePosition(offset: textPosition.offset - 4),
+            ),
+          ),
+          SelectionChangeType.insertContent,
+          SelectionReason.userInteraction,
         ),
-      );
+      ]);
 
-      return true;
-    }
-
-    // No pattern match was found
-    editorOpsLog.fine("ParagraphNode didn't match any conversion pattern.");
-    return false;
-
-    // (!) Dead url match code below left in place to resolve conflicts with base package repo easier in the future.
-
-    // URL match, e.g., images, social, etc.
-    editorOpsLog.fine('Looking for URL match...');
-    final extractedLinks = linkify(node.text.text,
-        options: const LinkifyOptions(
-          humanize: false,
-        ));
-    final int linkCount = extractedLinks.fold(0, (value, element) => element is UrlElement ? value + 1 : value);
-    editorOpsLog.fine("Found $linkCount link(s)");
-    final String nonEmptyText =
-        extractedLinks.fold('', (value, element) => element is TextElement ? value + element.text.trim() : value);
-    if (linkCount == 1 && nonEmptyText.isEmpty) {
-      // This node's text is just a URL, try to interpret it
-      // as a known type.
-      editorOpsLog.fine("The whole node is one big URL. Trying to convert the node type based on pattern matching...");
-      final link = extractedLinks.firstWhereOrNull((element) => element is UrlElement)!.text;
-      _processUrlNode(
-        document: editor.document,
-        editor: editor,
-        nodeId: node.id,
-        originalText: node.text.text,
-        url: link,
-      );
       return true;
     }
 
@@ -1764,75 +1720,6 @@ class CommonEditorOperations {
       5: header5Attribution,
       6: header6Attribution,
     }[headerLevel]!;
-  }
-
-  Future<void> _processUrlNode({
-    required Document document,
-    required DocumentEditor editor,
-    required String nodeId,
-    required String originalText,
-    required String url,
-  }) async {
-    late http.Response response;
-
-    // This function throws [SocketException] when the [url] is not valid.
-    // For instance, when typing for https://f|, it throws
-    // Unhandled Exception: SocketException: Failed host lookup: 'f'
-    //
-    // It doesn't affect any functionality, but it throws exception and preventing
-    // any related test to pass
-    try {
-      response = await http.get(Uri.parse(url));
-    } on SocketException catch (e) {
-      editorOpsLog.fine('Failed to load URL: ${e.message}');
-      return;
-    }
-
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      editorOpsLog.fine('Failed to load URL: ${response.statusCode} - ${response.reasonPhrase}');
-      return;
-    }
-
-    final contentType = response.headers['content-type'];
-    if (contentType == null) {
-      editorOpsLog.fine('Failed to determine URL content type.');
-      return;
-    }
-    if (!contentType.startsWith('image/')) {
-      editorOpsLog.fine('URL is not an image. Ignoring');
-      return;
-    }
-
-    // The URL is an image. Convert the node.
-    editorOpsLog.fine('The URL is an image. Converting the ParagraphNode to an ImageNode.');
-    final node = document.getNodeById(nodeId);
-    if (node is! ParagraphNode) {
-      editorOpsLog.fine('The node has become something other than a ParagraphNode ($node). Can\'t convert ndoe.');
-      return;
-    }
-    final currentText = node.text.text;
-    if (currentText.trim() != originalText.trim()) {
-      editorOpsLog.fine('The node content changed in a non-trivial way. Aborting node conversion.');
-      return;
-    }
-
-    final imageNode = ImageNode(
-      id: node.id,
-      imageUrl: url,
-    );
-
-    editor.executeCommand(
-      EditorCommandFunction((document, transaction) {
-        transaction.replaceNode(oldNode: node, newNode: imageNode);
-      }),
-    );
-
-    composer.selection = DocumentSelection.collapsed(
-      position: DocumentPosition(
-        nodeId: node.id,
-        nodePosition: imageNode.endPosition,
-      ),
-    );
   }
 
   bool _insertCharacterInTextComposable(
