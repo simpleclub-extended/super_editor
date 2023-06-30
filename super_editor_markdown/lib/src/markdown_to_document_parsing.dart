@@ -34,10 +34,10 @@ MutableDocument deserializeMarkdownToDocument(
     // * two whitespaces at the end of a line to insert a line break
     // * two whitespaces at the start of a bullet to indent the bullet
     if (line.trim().length == 0) {
-      return line.trim();
+      return md.Line(line.trim());
     }
 
-    return line;
+    return md.Line(line);
   }).toList();
 
   final markdownDoc = md.Document(
@@ -385,9 +385,11 @@ class InlineMarkdownToDocument implements md.NodeVisitor {
   bool get isImage => _imageUrl != null && attributedText.text.isEmpty;
 
   String? _imageUrl;
+
   String? get imageUrl => _imageUrl;
 
   String? _imageAltText;
+
   String? get imageAltText => _imageAltText;
 
   AttributedText get attributedText => textStack.first;
@@ -488,13 +490,18 @@ abstract class ElementToNodeConverter {
 /// Markdown with surrounding `¬` tags, e.g., "this is ¬underline¬ text".
 ///
 /// This [TagSyntax] produces `Element`s with a `u` tag.
-class UnderlineSyntax extends md.TagSyntax {
+class UnderlineSyntax extends md.DelimiterSyntax {
   UnderlineSyntax() : super('¬', requiresDelimiterRun: true, allowIntraWord: true);
 
   @override
-  md.Node close(md.InlineParser parser, md.Delimiter opener, md.Delimiter closer,
-      {required List<md.Node> Function() getChildren}) {
-    return md.Element('u', getChildren());
+  Iterable<md.Node>? close(
+    md.InlineParser parser,
+    md.Delimiter opener,
+    md.Delimiter closer, {
+    required String tag,
+    required List<md.Node> Function() getChildren,
+  }) {
+    return [md.Element('u', getChildren())];
   }
 }
 
@@ -509,7 +516,7 @@ class _ParagraphWithAlignmentSyntax extends _EmptyLinePreservingParagraphSyntax 
 
   @override
   bool canParse(md.BlockParser parser) {
-    if (!_alignmentNotationPattern.hasMatch(parser.current)) {
+    if (!_alignmentNotationPattern.hasMatch(parser.current.content)) {
       return false;
     }
 
@@ -525,7 +532,7 @@ class _ParagraphWithAlignmentSyntax extends _EmptyLinePreservingParagraphSyntax 
     /// We found a paragraph alignment token, but the block after the alignment token isn't a paragraph.
     /// Therefore, the paragraph alignment token is actually regular content. This parser doesn't need to
     /// take any action.
-    if (_standardNonParagraphBlockSyntaxes.any((syntax) => syntax.pattern.hasMatch(nextLine))) {
+    if (_standardNonParagraphBlockSyntaxes.any((syntax) => syntax.pattern.hasMatch(nextLine.content))) {
       return false;
     }
 
@@ -536,7 +543,7 @@ class _ParagraphWithAlignmentSyntax extends _EmptyLinePreservingParagraphSyntax 
 
   @override
   md.Node? parse(md.BlockParser parser) {
-    final match = _alignmentNotationPattern.firstMatch(parser.current);
+    final match = _alignmentNotationPattern.firstMatch(parser.current.content);
 
     // We've parsed the alignment token on the current line. We know a paragraph starts on the
     // next line. Move the parser to the next line so that we can parse the paragraph.
@@ -589,13 +596,13 @@ class _EmptyLinePreservingParagraphSyntax extends md.BlockSyntax {
 
   @override
   md.Node? parse(md.BlockParser parser) {
-    final childLines = <String>[];
-    final startsWithEmptyLine = parser.current.isEmpty;
+    final childLines = <md.Line>[];
+    final startsWithEmptyLine = parser.current.content.isEmpty;
 
     // A hard line break causes the next line to be treated
     // as part of the same paragraph, except if the next line is
     // the beginning of another block element.
-    bool hasHardLineBreak = _endsWithHardLineBreak(parser.current);
+    bool hasHardLineBreak = _endsWithHardLineBreak(parser.current.content);
 
     if (startsWithEmptyLine) {
       // The parser started at an empty line.
@@ -611,7 +618,7 @@ class _EmptyLinePreservingParagraphSyntax extends md.BlockSyntax {
         return null;
       }
 
-      if (!_blankLinePattern.hasMatch(parser.current)) {
+      if (!_blankLinePattern.hasMatch(parser.current.content)) {
         // We found an empty line, but the following line isn't blank.
         // As there is no hard line break, the first line is consumed
         // as a separator between blocks.
@@ -621,10 +628,10 @@ class _EmptyLinePreservingParagraphSyntax extends md.BlockSyntax {
 
       // We found a paragraph, and the first line of that paragraph is empty. Add a
       // corresponding empty line to the parsed version of the paragraph.
-      childLines.add('');
+      childLines.add(md.Line(''));
 
       // Check for a hard line break, so we consume the next line if we found one.
-      hasHardLineBreak = _endsWithHardLineBreak(parser.current);
+      hasHardLineBreak = _endsWithHardLineBreak(parser.current.content);
       parser.advance();
     }
 
@@ -635,7 +642,7 @@ class _EmptyLinePreservingParagraphSyntax extends md.BlockSyntax {
       final currentLine = parser.current;
       childLines.add(currentLine);
 
-      hasHardLineBreak = _endsWithHardLineBreak(currentLine);
+      hasHardLineBreak = _endsWithHardLineBreak(currentLine.content);
 
       parser.advance();
     }
@@ -648,7 +655,7 @@ class _EmptyLinePreservingParagraphSyntax extends md.BlockSyntax {
 
     // Remove trailing whitespace from each line of the parsed paragraph
     // and join them into a single string, separated by a line breaks.
-    final contents = md.UnparsedContent(childLines.map((e) => _removeTrailingSpaces(e)).join('\n'));
+    final contents = md.UnparsedContent(childLines.map((e) => _removeTrailingSpaces(e.content)).join('\n'));
     return _LineBreakSeparatedElement('p', [contents]);
   }
 
