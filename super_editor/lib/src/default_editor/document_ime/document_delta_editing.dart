@@ -110,7 +110,10 @@ class TextDeltasDocumentEditor {
       // On iOS, newlines are reported here and also to performAction().
       // On Android and web, newlines are only reported here. So, on Android and web,
       // we forward the newline action to performAction.
-      if (defaultTargetPlatform == TargetPlatform.android || kIsWeb) {
+      //
+      // Simpleclub upd: kIsWeb caused issue with double enter. Removed it from condition;
+      // see: https://github.com/simpleclub/flutter/pull/896#issuecomment-1613023706
+      if (defaultTargetPlatform == TargetPlatform.android) {
         editorImeLog.fine("Received a newline insertion on Android. Forwarding to newline input action.");
         onPerformAction(TextInputAction.newline);
       } else {
