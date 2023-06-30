@@ -41,6 +41,7 @@ MutableDocument deserializeMarkdownToDocument(
   }).toList();
 
   final markdownDoc = md.Document(
+    encodeHtml: false,
     blockSyntaxes: [
       ...customBlockSyntax,
       if (syntax == MarkdownSyntax.superEditor) //
@@ -347,6 +348,7 @@ class _MarkdownToDocument implements md.NodeVisitor {
     final inlineParser = md.InlineParser(
       element.textContent,
       md.Document(
+        encodeHtml: false,
         inlineSyntaxes: [
           md.StrikethroughSyntax(),
           UnderlineSyntax(),

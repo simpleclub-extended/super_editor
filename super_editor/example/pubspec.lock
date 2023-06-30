@@ -218,10 +218,10 @@ packages:
     dependency: transitive
     description:
       name: markdown
-      sha256: "39caf989ccc72c63e87b961851a74257141938599ed2db45fbd9403fee0db423"
+      sha256: "8e332924094383133cee218b676871f42db2514f1f6ac617b6cf6152a7faab8e"
       url: "https://pub.dev"
     source: hosted
-    version: "5.0.0"
+    version: "7.1.0"
   matcher:
     dependency: transitive
     description:
