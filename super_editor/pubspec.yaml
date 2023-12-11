@@ -39,7 +39,7 @@ dependencies:
       # Switch to simpleclub-stable when the following is fixed:
       # https://github.com/superlistapp/super_editor/issues/1219
       ref: simpleclub-stable-backup
-  uuid: ^3.0.3
+  uuid: ^4.2.1
 
   # Dependencies for testing tools that we ship with super_editor
   flutter_test:
