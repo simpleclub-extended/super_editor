@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
 
@@ -20,15 +22,32 @@ class BlinkController with ChangeNotifier {
     _ticker = tickerProvider.createTicker(_onTick);
   }
 
+  BlinkController.withTimer({
+    Duration flashPeriod = const Duration(milliseconds: 500),
+  }) : _flashPeriod = flashPeriod;
+
   @override
   void dispose() {
-    _ticker.dispose();
+    _ticker?.dispose();
+    _timer?.cancel();
+
     super.dispose();
   }
 
-  late final Ticker _ticker;
-  final Duration _flashPeriod;
+  Ticker? _ticker;
   Duration _lastBlinkTime = Duration.zero;
+
+  Timer? _timer;
+
+  final Duration _flashPeriod;
+
+  /// Duration to switch between visible and invisible.
+  Duration get flashPeriod => _flashPeriod;
+
+  /// Returns `true` if this controller is currently animating a blinking
+  /// signal, or `false` if it's not.
+  bool get isBlinking =>
+      (_ticker != null || _timer != null) && (_ticker != null ? _ticker!.isTicking : _timer?.isActive ?? false);
 
   bool _isBlinkingEnabled = true;
   set isBlinkingEnabled(bool newValue) {
@@ -53,28 +72,49 @@ class BlinkController with ChangeNotifier {
       return;
     }
 
-    _ticker
-      ..stop()
-      ..start();
+    if (_ticker != null) {
+      // We're using a Ticker to blink. Restart it.
+      _ticker!
+        ..stop()
+        ..start();
+    } else {
+      // We're using a Timer to blink. Restart it.
+      _timer?.cancel();
+      _timer = Timer(_flashPeriod, _blink);
+    }
+
     _lastBlinkTime = Duration.zero;
     notifyListeners();
   }
 
   void stopBlinking() {
     _isVisible = true; // If we're not blinking then we need to be visible
-    _ticker.stop();
+
+    if (_ticker != null) {
+      // We're using a Ticker to blink. Stop it.
+      _ticker?.stop();
+      _ticker = null;
+    } else {
+      // We're using a Timer to blink. Stop it.
+      _timer?.cancel();
+      _timer = null;
+    }
+
     notifyListeners();
   }
 
   /// Make the object completely opaque, and restart the blink timer.
   void jumpToOpaque() {
+    final wasBlinking = isBlinking;
     stopBlinking();
 
     if (!_isBlinkingEnabled) {
       return;
     }
 
-    startBlinking();
+    if (wasBlinking) {
+      startBlinking();
+    }
   }
 
   void _onTick(Duration elapsedTime) {
@@ -87,5 +127,23 @@ class BlinkController with ChangeNotifier {
   void _blink() {
     _isVisible = !_isVisible;
     notifyListeners();
+
+    if (_timer != null && _isBlinkingEnabled) {
+      _timer = Timer(_flashPeriod, _blink);
+    }
   }
+}
+
+/// The way a blinking caret tracks time.
+///
+/// Ideally, all time in Flutter widgets is tracked by `Ticker`s because they hook into
+/// Flutter's internal time reporting. This is critical for tests.
+///
+/// Unfortunately, at the time of this writing, running `Ticker`s forces Flutter into
+/// full FPS rendering, even when nothing needs to be rebuilt or painted. For that reason,
+/// [BlinkController] lets users request the use of Dart `Timer`s, which only fire
+/// when needed. `Timer`s are not expected to work in widget tests.
+enum BlinkTimingMode {
+  ticker,
+  timer,
 }

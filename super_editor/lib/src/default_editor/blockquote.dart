@@ -2,13 +2,14 @@ import 'package:attributed_text/attributed_text.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:super_editor/src/core/edit_context.dart';
+import 'package:super_editor/src/core/editor.dart';
+import 'package:super_editor/src/core/styles.dart';
 import 'package:super_editor/src/default_editor/attributions.dart';
 import 'package:super_editor/src/infrastructure/_logging.dart';
 import 'package:super_editor/src/infrastructure/attributed_text_styles.dart';
 import 'package:super_editor/src/infrastructure/keyboard.dart';
 
 import '../core/document.dart';
-import '../core/document_editor.dart';
 import 'layout_single_column/layout_single_column.dart';
 import 'paragraph.dart';
 import 'text.dart';
@@ -76,6 +77,8 @@ class BlockquoteComponentBuilder implements ComponentBuilder {
       textSelection: componentViewModel.selection,
       selectionColor: componentViewModel.selectionColor,
       highlightWhenEmpty: componentViewModel.highlightWhenEmpty,
+      composingRegion: componentViewModel.composingRegion,
+      showComposingUnderline: componentViewModel.showComposingUnderline,
     );
   }
 }
@@ -94,10 +97,12 @@ class BlockquoteComponentViewModel extends SingleColumnLayoutComponentViewModel 
     this.selection,
     required this.selectionColor,
     this.highlightWhenEmpty = false,
+    this.composingRegion,
+    this.showComposingUnderline = false,
   }) : super(nodeId: nodeId, maxWidth: maxWidth, padding: padding);
 
+  @override
   AttributedText text;
-
   @override
   AttributionStyleBuilder textStyleBuilder;
   @override
@@ -110,6 +115,10 @@ class BlockquoteComponentViewModel extends SingleColumnLayoutComponentViewModel 
   Color selectionColor;
   @override
   bool highlightWhenEmpty;
+  @override
+  TextRange? composingRegion;
+  @override
+  bool showComposingUnderline;
 
   Color backgroundColor;
   BorderRadius borderRadius;
@@ -117,8 +126,8 @@ class BlockquoteComponentViewModel extends SingleColumnLayoutComponentViewModel 
   @override
   void applyStyles(Map<String, dynamic> styles) {
     super.applyStyles(styles);
-    backgroundColor = styles["backgroundColor"] ?? Colors.transparent;
-    borderRadius = styles["borderRadius"] ?? BorderRadius.zero;
+    backgroundColor = styles[Styles.backgroundColor] ?? Colors.transparent;
+    borderRadius = styles[Styles.borderRadius] ?? BorderRadius.zero;
   }
 
   @override
@@ -136,6 +145,8 @@ class BlockquoteComponentViewModel extends SingleColumnLayoutComponentViewModel 
       selection: selection,
       selectionColor: selectionColor,
       highlightWhenEmpty: highlightWhenEmpty,
+      composingRegion: composingRegion,
+      showComposingUnderline: showComposingUnderline,
     );
   }
 
@@ -153,7 +164,9 @@ class BlockquoteComponentViewModel extends SingleColumnLayoutComponentViewModel 
           borderRadius == other.borderRadius &&
           selection == other.selection &&
           selectionColor == other.selectionColor &&
-          highlightWhenEmpty == other.highlightWhenEmpty;
+          highlightWhenEmpty == other.highlightWhenEmpty &&
+          composingRegion == other.composingRegion &&
+          showComposingUnderline == other.showComposingUnderline;
 
   @override
   int get hashCode =>
@@ -166,7 +179,9 @@ class BlockquoteComponentViewModel extends SingleColumnLayoutComponentViewModel 
       borderRadius.hashCode ^
       selection.hashCode ^
       selectionColor.hashCode ^
-      highlightWhenEmpty.hashCode;
+      highlightWhenEmpty.hashCode ^
+      composingRegion.hashCode ^
+      showComposingUnderline.hashCode;
 }
 
 /// Displays a blockquote in a document.
@@ -180,8 +195,10 @@ class BlockquoteComponent extends StatelessWidget {
     this.selectionColor = Colors.lightBlueAccent,
     required this.backgroundColor,
     required this.borderRadius,
-    this.showDebugPaint = false,
     this.highlightWhenEmpty = false,
+    this.composingRegion,
+    this.showComposingUnderline = false,
+    this.showDebugPaint = false,
   }) : super(key: key);
 
   final GlobalKey textKey;
@@ -192,6 +209,8 @@ class BlockquoteComponent extends StatelessWidget {
   final Color backgroundColor;
   final BorderRadius borderRadius;
   final bool highlightWhenEmpty;
+  final TextRange? composingRegion;
+  final bool showComposingUnderline;
   final bool showDebugPaint;
 
   @override
@@ -211,6 +230,8 @@ class BlockquoteComponent extends StatelessWidget {
           textSelection: textSelection,
           selectionColor: selectionColor,
           highlightWhenEmpty: highlightWhenEmpty,
+          composingRegion: composingRegion,
+          showComposingUnderline: showComposingUnderline,
           showDebugPaint: showDebugPaint,
         ),
       ),
@@ -218,7 +239,7 @@ class BlockquoteComponent extends StatelessWidget {
   }
 }
 
-class ConvertBlockquoteToParagraphCommand implements EditorCommand {
+class ConvertBlockquoteToParagraphCommand implements EditCommand {
   ConvertBlockquoteToParagraphCommand({
     required this.nodeId,
   });
@@ -226,26 +247,33 @@ class ConvertBlockquoteToParagraphCommand implements EditorCommand {
   final String nodeId;
 
   @override
-  void execute(Document document, DocumentEditorTransaction transaction) {
+  void execute(EditContext context, CommandExecutor executor) {
+    final document = context.find<MutableDocument>(Editor.documentKey);
     final node = document.getNodeById(nodeId);
     final blockquote = node as ParagraphNode;
     final newParagraphNode = ParagraphNode(
       id: blockquote.id,
       text: blockquote.text,
     );
-    transaction.replaceNode(oldNode: blockquote, newNode: newParagraphNode);
+    document.replaceNode(oldNode: blockquote, newNode: newParagraphNode);
+
+    executor.logChanges([
+      DocumentEdit(
+        NodeChangeEvent(nodeId),
+      )
+    ]);
   }
 }
 
 ExecutionInstruction insertNewlineInBlockquote({
-  required EditContext editContext,
-  required RawKeyEvent keyEvent,
+  required SuperEditorContext editContext,
+  required KeyEvent keyEvent,
 }) {
   if (keyEvent.logicalKey != LogicalKeyboardKey.enter) {
     return ExecutionInstruction.continueExecution;
   }
 
-  if (!keyEvent.isShiftPressed) {
+  if (!HardwareKeyboard.instance.isShiftPressed) {
     return ExecutionInstruction.continueExecution;
   }
 
@@ -253,8 +281,8 @@ ExecutionInstruction insertNewlineInBlockquote({
     return ExecutionInstruction.continueExecution;
   }
 
-  final baseNode = editContext.editor.document.getNodeById(editContext.composer.selection!.base.nodeId)!;
-  final extentNode = editContext.editor.document.getNodeById(editContext.composer.selection!.extent.nodeId)!;
+  final baseNode = editContext.document.getNodeById(editContext.composer.selection!.base.nodeId)!;
+  final extentNode = editContext.document.getNodeById(editContext.composer.selection!.extent.nodeId)!;
   if (baseNode.id != extentNode.id) {
     return ExecutionInstruction.continueExecution;
   }
@@ -270,8 +298,8 @@ ExecutionInstruction insertNewlineInBlockquote({
 }
 
 ExecutionInstruction splitBlockquoteWhenEnterPressed({
-  required EditContext editContext,
-  required RawKeyEvent keyEvent,
+  required SuperEditorContext editContext,
+  required KeyEvent keyEvent,
 }) {
   if (keyEvent.logicalKey != LogicalKeyboardKey.enter) {
     return ExecutionInstruction.continueExecution;
@@ -281,8 +309,8 @@ ExecutionInstruction splitBlockquoteWhenEnterPressed({
     return ExecutionInstruction.continueExecution;
   }
 
-  final baseNode = editContext.editor.document.getNodeById(editContext.composer.selection!.base.nodeId)!;
-  final extentNode = editContext.editor.document.getNodeById(editContext.composer.selection!.extent.nodeId)!;
+  final baseNode = editContext.document.getNodeById(editContext.composer.selection!.base.nodeId)!;
+  final extentNode = editContext.document.getNodeById(editContext.composer.selection!.extent.nodeId)!;
   if (baseNode.id != extentNode.id) {
     return ExecutionInstruction.continueExecution;
   }
@@ -297,7 +325,7 @@ ExecutionInstruction splitBlockquoteWhenEnterPressed({
   return didSplit ? ExecutionInstruction.haltExecution : ExecutionInstruction.continueExecution;
 }
 
-class SplitBlockquoteCommand implements EditorCommand {
+class SplitBlockquoteCommand implements EditCommand {
   SplitBlockquoteCommand({
     required this.nodeId,
     required this.splitPosition,
@@ -309,12 +337,13 @@ class SplitBlockquoteCommand implements EditorCommand {
   final String newNodeId;
 
   @override
-  void execute(Document document, DocumentEditorTransaction transaction) {
+  void execute(EditContext context, CommandExecutor executor) {
+    final document = context.find<MutableDocument>(Editor.documentKey);
     final node = document.getNodeById(nodeId);
     final blockquote = node as ParagraphNode;
     final text = blockquote.text;
     final startText = text.copyText(0, splitPosition.offset);
-    final endText = splitPosition.offset < text.text.length ? text.copyText(splitPosition.offset) : AttributedText();
+    final endText = splitPosition.offset < text.length ? text.copyText(splitPosition.offset) : AttributedText();
 
     // Change the current node's content to just the text before the caret.
     // TODO: figure out how node changes should work in terms of
@@ -331,9 +360,18 @@ class SplitBlockquoteCommand implements EditorCommand {
     );
 
     // Insert the new node after the current node.
-    transaction.insertNodeAfter(
+    document.insertNodeAfter(
       existingNode: node,
       newNode: newNode,
     );
+
+    executor.logChanges([
+      DocumentEdit(
+        NodeChangeEvent(nodeId),
+      ),
+      DocumentEdit(
+        NodeInsertedEvent(newNodeId, document.getNodeIndexById(newNodeId)),
+      ),
+    ]);
   }
 }

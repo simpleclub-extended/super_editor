@@ -1,3 +1,4 @@
+import 'package:example/demos/supertextfield/demo_text_styles.dart';
 import 'package:flutter/material.dart';
 import 'package:super_editor/super_editor.dart';
 
@@ -12,7 +13,7 @@ class EmojisTextFieldDemo extends StatefulWidget {
   final TextAffinity direction;
 
   @override
-  _EmojisTextFieldDemoState createState() => _EmojisTextFieldDemoState();
+  State<EmojisTextFieldDemo> createState() => _EmojisTextFieldDemoState();
 }
 
 class _EmojisTextFieldDemoState extends State<EmojisTextFieldDemo> with TickerProviderStateMixin {
@@ -49,23 +50,21 @@ class _EmojisTextFieldDemoState extends State<EmojisTextFieldDemo> with TickerPr
   void _startDemo() {
     _textFieldController
       ..selection = const TextSelection.collapsed(offset: 0)
-      ..text = AttributedText(
-        text: 'turtle 🐢 bomb 💣 skull ☠',
-      );
+      ..text = AttributedText('turtle 🐢 bomb 💣 skull ☠');
 
     if (widget.direction == TextAffinity.upstream) {
       // simulate pressing backspace
       _demoRobot
-        ..insertCaretAt(TextPosition(offset: _textFieldController.text.text.length))
+        ..insertCaretAt(TextPosition(offset: _textFieldController.text.length))
         ..pause(const Duration(seconds: 1))
-        ..backspaceCharacters(_textFieldController.text.text.length)
+        ..backspaceCharacters(_textFieldController.text.length)
         ..start();
     } else {
       // simulate pressing delete
       _demoRobot
         ..insertCaretAt(const TextPosition(offset: 0))
         ..pause(const Duration(seconds: 1))
-        ..deleteCharacters(_textFieldController.text.text.length)
+        ..deleteCharacters(_textFieldController.text.length)
         ..start();
     }
   }
@@ -121,6 +120,7 @@ class _EmojisTextFieldDemoState extends State<EmojisTextFieldDemo> with TickerPr
                       );
                     },
                     hintBehavior: HintBehavior.displayHintUntilTextEntered,
+                    textStyleBuilder: demoTextStyleBuilder,
                     minLines: 1,
                     maxLines: 1,
                   ),

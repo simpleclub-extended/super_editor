@@ -3,7 +3,7 @@ description: Configurable, composable, extensible text display for Flutter.
 publish_to: 'none'
 
 environment:
-  sdk: ">=2.12.0 <3.0.0"
+  sdk: ">=3.0.0 <4.0.0"
   flutter: ">=1.17.0"
 
 dependencies:
@@ -15,13 +15,26 @@ dependencies:
       url: https://github.com/simpleclub-extended/super_editor
       path: attributed_text
       ref: simpleclub-stable
+  collection: ^1.18.0
   logging: ^1.0.1
+
+  # For inspector
+  flutter_test:
+    sdk: flutter
+
+#dependency_overrides:
+#  # Override to local mono-repo path so devs can test this repo
+#  # against changes that they're making to other mono-repo packages
+#  attributed_text:
+#    path: ../attributed_text
 
 dev_dependencies:
   flutter_lints: ^2.0.1
-  flutter_test:
-    sdk: flutter
-  golden_toolkit: ^0.11.0
+  golden_toolkit: ^0.15.0
+  args: ^2.3.1
+  meta: ^1.8.0
+  golden_runner:
+    path: ../golden_runner
 
 flutter:
   # no Flutter configuration

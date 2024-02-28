@@ -13,6 +13,7 @@ class Stylesheet {
     this.documentPadding,
     required this.rules,
     required this.inlineTextStyler,
+    this.selectedTextColorStrategy,
   });
 
   /// Padding applied around the interior edge of the document.
@@ -25,12 +26,16 @@ class Stylesheet {
   /// Styles all in-line text in the document.
   final AttributionStyleAdjuster inlineTextStyler;
 
+  /// The strategy that chooses the color for selected text.
+  final SelectedTextColorStrategy? selectedTextColorStrategy;
+
   /// Priority-order list of style rules.
   final List<StyleRule> rules;
 
   Stylesheet copyWith({
     EdgeInsets? documentPadding,
     AttributionStyleAdjuster? inlineTextStyler,
+    SelectedTextColorStrategy? selectedTextColorStrategy,
     List<StyleRule> addRulesBefore = const [],
     List<StyleRule>? rules,
     List<StyleRule> addRulesAfter = const [],
@@ -38,6 +43,7 @@ class Stylesheet {
     return Stylesheet(
       documentPadding: documentPadding ?? this.documentPadding,
       inlineTextStyler: inlineTextStyler ?? this.inlineTextStyler,
+      selectedTextColorStrategy: selectedTextColorStrategy ?? this.selectedTextColorStrategy,
       rules: [
         ...addRulesBefore,
         ...(rules ?? this.rules),
@@ -46,6 +52,22 @@ class Stylesheet {
     );
   }
 }
+
+/// Default [SelectedTextColorStrategy], which retains the original text color,
+/// regardless of selection color.
+Color defaultSelectedTextColorStrategy({
+  required Color originalTextColor,
+  required Color selectionHighlightColor,
+}) {
+  return originalTextColor;
+}
+
+/// Returns the [Color] that should be used for selected text, possibly based
+/// on the [originalTextColor].
+typedef SelectedTextColorStrategy = Color Function({
+  required Color originalTextColor,
+  required Color selectionHighlightColor,
+});
 
 /// Adjusts the given [existingStyle] based on the given [attributions].
 typedef AttributionStyleAdjuster = TextStyle Function(Set<Attribution> attributions, TextStyle existingStyle);
@@ -70,6 +92,8 @@ class StyleRule {
 }
 
 /// Generates style metadata for the given [DocumentNode] within the [Document].
+///
+/// See [Styles] for the list of available keys.
 typedef Styler = Map<String, dynamic> Function(Document, DocumentNode);
 
 /// Selects blocks in a document that matches a given rule.
@@ -293,4 +317,28 @@ class SelectionStyles {
 
   @override
   int get hashCode => selectionColor.hashCode ^ highlightEmptyTextBlocks.hashCode;
+}
+
+/// The keys to the style metadata used by a [StyleRule].
+class Styles {
+  /// Applies a [TextStyle] to the content.
+  static const String textStyle = 'textStyle';
+
+  /// Applies a [CascadingPadding] around the content.
+  static const String padding = 'padding';
+
+  /// Key to a `double` that defines the maximum width of the node.
+  static const String maxWidth = 'maxWidth';
+
+  /// Applies a background [Color] to a blockquote.
+  static const String backgroundColor = 'backgroundColor';
+
+  /// Applies a [BorderRadius] to a blockquote.
+  static const String borderRadius = 'borderRadius';
+
+  /// Applies a [TextAlign] to a text node.
+  static const String textAlign = 'textAlign';
+
+  /// Applies a [AttributionStyleAdjuster] to a text node.
+  static const String inlineTextStyler = 'inlineTextStyler';
 }

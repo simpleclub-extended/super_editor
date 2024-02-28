@@ -9,14 +9,18 @@ class MobileSuperTextFieldDemo extends StatefulWidget {
   const MobileSuperTextFieldDemo({
     Key? key,
     required this.initialText,
+    required this.textFieldFocusNode,
+    required this.textFieldTapRegionGroupId,
     required this.createTextField,
   }) : super(key: key);
 
   final AttributedText initialText;
+  final FocusNode textFieldFocusNode;
+  final String textFieldTapRegionGroupId;
   final Widget Function(MobileTextFieldDemoConfig) createTextField;
 
   @override
-  _MobileSuperTextFieldDemoState createState() => _MobileSuperTextFieldDemoState();
+  State<MobileSuperTextFieldDemo> createState() => _MobileSuperTextFieldDemoState();
 }
 
 class _MobileSuperTextFieldDemoState extends State<MobileSuperTextFieldDemo> {
@@ -33,14 +37,14 @@ class _MobileSuperTextFieldDemoState extends State<MobileSuperTextFieldDemo> {
 
     initLoggers(Level.FINEST, {
       // textFieldLog,
-      scrollingTextFieldLog,
+      // scrollingTextFieldLog,
       // imeTextFieldLog,
       // androidTextFieldLog,
     });
 
     _textController = ImeAttributedTextEditingController(
       controller: AttributedTextEditingController(
-        text: widget.initialText,
+        text: widget.initialText.copyText(0),
       ),
     );
   }
@@ -62,14 +66,22 @@ class _MobileSuperTextFieldDemoState extends State<MobileSuperTextFieldDemo> {
     int? maxLines;
     switch (_sizeMode) {
       case _TextFieldSizeMode.singleLine:
+        _textController.text = widget.initialText.copyText(0);
         minLines = 1;
         maxLines = 1;
         break;
       case _TextFieldSizeMode.short:
+        _textController.text = widget.initialText.copyText(0);
         maxLines = 5;
         break;
       case _TextFieldSizeMode.tall:
+        _textController.text = widget.initialText.copyText(0);
         // no-op
+        break;
+      case _TextFieldSizeMode.empty:
+        _textController.text = AttributedText();
+        minLines = 1;
+        maxLines = 1;
         break;
     }
 
@@ -89,17 +101,15 @@ class _MobileSuperTextFieldDemoState extends State<MobileSuperTextFieldDemo> {
         children: [
           Expanded(
             child: Scaffold(
-              body: GestureDetector(
-                onTap: () {
-                  _screenFocusNode.requestFocus();
-                },
-                behavior: HitTestBehavior.translucent,
-                child: Focus(
-                  focusNode: _screenFocusNode,
-                  child: SafeArea(
-                    child: Center(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 48),
+              body: Focus(
+                focusNode: _screenFocusNode,
+                child: SafeArea(
+                  child: Center(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 48),
+                      child: TapRegion(
+                        groupId: widget.textFieldTapRegionGroupId,
+                        onTapOutside: (_) => widget.textFieldFocusNode.unfocus(),
                         child: widget.createTextField(_createDemoConfig()),
                       ),
                     ),
@@ -115,11 +125,14 @@ class _MobileSuperTextFieldDemoState extends State<MobileSuperTextFieldDemo> {
                 child: const Icon(Icons.bug_report),
               ),
               bottomNavigationBar: BottomNavigationBar(
+                type: BottomNavigationBarType.fixed,
                 currentIndex: _sizeMode == _TextFieldSizeMode.singleLine
                     ? 0
                     : _sizeMode == _TextFieldSizeMode.short
                         ? 1
-                        : 2,
+                        : _sizeMode == _TextFieldSizeMode.tall
+                            ? 2
+                            : 3,
                 items: const [
                   BottomNavigationBarItem(
                     icon: Icon(Icons.short_text),
@@ -133,6 +146,10 @@ class _MobileSuperTextFieldDemoState extends State<MobileSuperTextFieldDemo> {
                     icon: Icon(Icons.wrap_text_rounded),
                     label: 'Tall',
                   ),
+                  BottomNavigationBarItem(
+                    icon: Icon(Icons.short_text),
+                    label: 'Empty',
+                  ),
                 ],
                 onTap: (int newIndex) {
                   setState(() {
@@ -142,6 +159,8 @@ class _MobileSuperTextFieldDemoState extends State<MobileSuperTextFieldDemo> {
                       _sizeMode = _TextFieldSizeMode.short;
                     } else if (newIndex == 2) {
                       _sizeMode = _TextFieldSizeMode.tall;
+                    } else if (newIndex == 3) {
+                      _sizeMode = _TextFieldSizeMode.empty;
                     }
                   });
                 },
@@ -178,6 +197,7 @@ enum _TextFieldSizeMode {
   singleLine,
   short,
   tall,
+  empty,
 }
 
 class MobileTextFieldDemoConfig {

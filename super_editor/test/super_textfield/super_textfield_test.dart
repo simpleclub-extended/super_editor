@@ -1,10 +1,12 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_test_runners/flutter_test_runners.dart';
 import 'package:super_editor/super_editor.dart';
 import 'package:super_text_layout/super_text_layout.dart';
 
-import '../test_tools.dart';
+import 'super_textfield_robot.dart';
 
 void main() {
   group("SuperTextField", () {
@@ -95,76 +97,191 @@ void main() {
     });
 
     group("on mobile", () {
-      group("configures inner textfield textInputAction for newline when it's multiline", () {
-        testWidgetsOnAndroid('(on Android)', (tester) async {
-          await tester.pumpWidget(
-            _buildScaffold(
-              child: const SuperTextField(
-                minLines: 10,
-                maxLines: 10,
-              ),
+      testWidgetsOnAndroid("configures inner textfield textInputAction for newline when it's multiline",
+          (tester) async {
+        await tester.pumpWidget(
+          _buildScaffold(
+            child: const SuperTextField(
+              minLines: 10,
+              maxLines: 10,
             ),
-          );
+          ),
+        );
 
-          final innerTextField = tester.widget<SuperAndroidTextField>(find.byType(SuperAndroidTextField).first);
+        final innerTextField = tester.widget<SuperAndroidTextField>(find.byType(SuperAndroidTextField).first);
 
-          // Ensure inner textfield action is configured to newline
-          // so we are able to receive new lines
-          expect(innerTextField.textInputAction, TextInputAction.newline);
-        });
-
-        testWidgetsOnIos('(on iOS)', (tester) async {
-          await tester.pumpWidget(
-            _buildScaffold(
-              child: const SuperTextField(
-                minLines: 10,
-                maxLines: 10,
-              ),
-            ),
-          );
-
-          final innerTextField = tester.widget<SuperIOSTextField>(find.byType(SuperIOSTextField).first);
-
-          // Ensure inner textfield action is configured to newline
-          // so we are able to receive new lines
-          expect(innerTextField.textInputAction, TextInputAction.newline);
-        });
+        // Ensure inner textfield action is configured to newline
+        // so we are able to receive new lines
+        expect(innerTextField.textInputAction, TextInputAction.newline);
       });
 
-      group("configures inner textfield textInputAction for done when it's singleline", () {
-        testWidgetsOnAndroid('(on Android)', (tester) async {
-          await tester.pumpWidget(
-            _buildScaffold(
-              child: const SuperTextField(
-                minLines: 1,
-                maxLines: 1,
+      testWidgetsOnIos("configures inner textfield textInputAction for newline when it's multiline", (tester) async {
+        await tester.pumpWidget(
+          _buildScaffold(
+            child: const SuperTextField(
+              minLines: 10,
+              maxLines: 10,
+            ),
+          ),
+        );
+
+        final innerTextField = tester.widget<SuperIOSTextField>(find.byType(SuperIOSTextField).first);
+
+        // Ensure inner textfield action is configured to newline
+        // so we are able to receive new lines
+        expect(innerTextField.textInputAction, TextInputAction.newline);
+      });
+
+      testWidgetsOnAndroid("configures inner textfield textInputAction for done when it's singleline", (tester) async {
+        await tester.pumpWidget(
+          _buildScaffold(
+            child: const SuperTextField(
+              minLines: 1,
+              maxLines: 1,
+            ),
+          ),
+        );
+
+        final innerTextField = tester.widget<SuperAndroidTextField>(find.byType(SuperAndroidTextField).first);
+
+        // Ensure inner textfield action is configured to done
+        // because we should NOT receive new lines
+        expect(innerTextField.textInputAction, TextInputAction.done);
+      });
+
+      testWidgetsOnIos("configures inner textfield textInputAction for done when it's singleline", (tester) async {
+        await tester.pumpWidget(
+          _buildScaffold(
+            child: const SuperTextField(
+              minLines: 1,
+              maxLines: 1,
+            ),
+          ),
+        );
+
+        final innerTextField = tester.widget<SuperIOSTextField>(find.byType(SuperIOSTextField).first);
+
+        // Ensure inner textfield action is configured to done
+        // because we should NOT receive new lines
+        expect(innerTextField.textInputAction, TextInputAction.done);
+      });
+
+      testWidgetsOnIos('applies keyboard appearance', (tester) async {
+        await tester.pumpWidget(
+          _buildScaffold(
+            child: SuperTextField(
+              textController: ImeAttributedTextEditingController(
+                keyboardAppearance: Brightness.dark,
               ),
             ),
-          );
+          ),
+        );
+        await tester.pumpAndSettle();
 
-          final innerTextField = tester.widget<SuperAndroidTextField>(find.byType(SuperAndroidTextField).first);
+        // Holds the keyboard appearance sent to the platform.
+        String? keyboardAppearance;
 
-          // Ensure inner textfield action is configured to done
-          // because we should NOT receive new lines
-          expect(innerTextField.textInputAction, TextInputAction.done);
+        // Intercept messages sent to the platform.
+        tester.binding.defaultBinaryMessenger.setMockMessageHandler(SystemChannels.textInput.name, (message) async {
+          final methodCall = const JSONMethodCodec().decodeMethodCall(message);
+          if (methodCall.method == 'TextInput.setClient') {
+            final params = methodCall.arguments[1] as Map;
+            keyboardAppearance = params['keyboardAppearance'];
+          }
+          return null;
         });
 
-        testWidgetsOnIos('(on iOS)', (tester) async {
-          await tester.pumpWidget(
-            _buildScaffold(
-              child: const SuperTextField(
-                minLines: 1,
-                maxLines: 1,
-              ),
+        // Tap the text field to show the software keyboard.
+        await tester.placeCaretInSuperTextField(0);
+
+        // Ensure the given keyboardAppearance was applied.
+        expect(keyboardAppearance, 'Brightness.dark');
+      });
+
+      testWidgetsOnIos('updates keyboard appearance', (tester) async {
+        final controller = ImeAttributedTextEditingController(
+          keyboardAppearance: Brightness.light,
+        );
+
+        await tester.pumpWidget(
+          _buildScaffold(
+            child: SuperTextField(
+              textController: controller,
             ),
-          );
+          ),
+        );
+        await tester.pumpAndSettle();
 
-          final innerTextField = tester.widget<SuperIOSTextField>(find.byType(SuperIOSTextField).first);
+        // Holds the keyboard appearance sent to the platform.
+        String? keyboardAppearance;
 
-          // Ensure inner textfield action is configured to done
-          // because we should NOT receive new lines
-          expect(innerTextField.textInputAction, TextInputAction.done);
-        });
+        // Intercept the setClient message sent to the platform.
+        tester
+            .interceptChannel(SystemChannels.textInput.name) //
+            .interceptMethod(
+          'TextInput.setClient',
+          (methodCall) {
+            final params = methodCall.arguments[1] as Map;
+            keyboardAppearance = params['keyboardAppearance'];
+            return null;
+          },
+        );
+
+        // Tap the text field to show the software keyboard with the light appearance.
+        await tester.placeCaretInSuperTextField(0);
+
+        // Ensure the initial keyboardAppearance was applied.
+        expect(keyboardAppearance, 'Brightness.light');
+
+        // Change the keyboard appearance from light to dark.
+        controller.updateTextInputConfiguration(
+          keyboardAppearance: Brightness.dark,
+        );
+        await tester.pump();
+
+        // Ensure the given keyboardAppearance was applied.
+        expect(keyboardAppearance, 'Brightness.dark');
+      });
+
+      testWidgetsOnIos('updates keyboard appearance when not attached to IME', (tester) async {
+        final controller = ImeAttributedTextEditingController(
+          keyboardAppearance: Brightness.light,
+        );
+
+        await tester.pumpWidget(
+          _buildScaffold(
+            child: SuperTextField(
+              textController: controller,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // Holds the keyboard appearance sent to the platform.
+        String? keyboardAppearance;
+
+        // Intercept the setClient message sent to the platform.
+        tester
+            .interceptChannel(SystemChannels.textInput.name) //
+            .interceptMethod(
+          'TextInput.setClient',
+          (methodCall) {
+            final params = methodCall.arguments[1] as Map;
+            keyboardAppearance = params['keyboardAppearance'];
+            return null;
+          },
+        );
+
+        // Change the keyboard appearance from light to dark while detached from IME.
+        controller.updateTextInputConfiguration(
+          keyboardAppearance: Brightness.dark,
+        );
+
+        // Tap the text field to show the software keyboard.
+        await tester.placeCaretInSuperTextField(0);
+
+        // Ensure the initial keyboardAppearance was dark.
+        expect(keyboardAppearance, 'Brightness.dark');
       });
     });
 
@@ -245,7 +362,7 @@ void main() {
         await tester.pumpAndSettle();
 
         final textFieldRect = tester.getRect(find.byType(SuperTextField));
-        final contentRect = tester.getRect(find.byType(SuperTextWithSelection));
+        final contentRect = tester.getRect(find.byType(SuperText));
 
         // Ensure padding was applied.
         expect(contentRect.left - textFieldRect.left, 5);
@@ -272,7 +389,7 @@ void main() {
       // Change the text so the content height is greater
       // than the initial content height.
       controller.text = AttributedText(
-        text: """
+        """
 This is
 a
 multi-line
@@ -281,7 +398,7 @@ SuperTextField
       );
       await tester.pumpAndSettle();
 
-      final textSize = tester.getSize(find.byType(SuperTextWithSelection));
+      final textSize = tester.getSize(find.byType(SuperText));
       final textFieldSize = tester.getSize(find.byType(SuperTextField));
 
       // Ensure the text field height is big enough to display the whole content.
@@ -308,7 +425,7 @@ SuperTextField
       // Change the text, so the content height is greater
       // than the initial content height.
       controller.text = AttributedText(
-        text: """
+        """
 This is
 a
 multi-line

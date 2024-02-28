@@ -1,9 +1,13 @@
 import 'dart:math';
 import 'dart:ui';
 
+import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
-import 'package:flutter/widgets.dart';
 import 'package:super_editor/src/infrastructure/_logging.dart';
+import 'package:super_editor/src/infrastructure/documents/document_scroller.dart';
+import 'package:super_editor/src/infrastructure/flutter/build_context.dart';
+import 'package:super_editor/src/infrastructure/flutter/flutter_scheduler.dart';
+import 'package:super_editor/src/infrastructure/flutter/material_scrollbar.dart';
 import 'package:super_editor/src/infrastructure/scrolling_diagnostics/_scrolling_minimap.dart';
 
 import '../infrastructure/document_gestures.dart';
@@ -25,14 +29,27 @@ class DocumentScrollable extends StatefulWidget {
   const DocumentScrollable({
     Key? key,
     required this.autoScroller,
+    this.scrollController,
+    this.scroller,
     this.scrollingMinimapId,
     this.showDebugPaint = false,
-    this.scrollController,
     required this.child,
   }) : super(key: key);
 
   /// Controller that adjusts the scroll offset of this [DocumentScrollable].
   final AutoScrollController autoScroller;
+
+  /// The [ScrollController] that governs this [DocumentScrollable]'s scroll
+  /// offset.
+  ///
+  /// `scrollController` is not used if this `SuperEditor` has an ancestor
+  /// `Scrollable`.
+  final ScrollController? scrollController;
+
+  /// A [DocumentScroller], to which this scrollable attaches itself, so
+  /// that external actors, such as keyboard handlers, can query and change
+  /// the scroll offset.
+  final DocumentScroller? scroller;
 
   /// ID that this widget's scrolling system registers with an ancestor
   /// [ScrollingMinimaps] to report scrolling diagnostics for debugging.
@@ -41,13 +58,6 @@ class DocumentScrollable extends StatefulWidget {
   /// Paints some extra visual ornamentation to help with
   /// debugging, when `true`.
   final bool showDebugPaint;
-
-  /// The [ScrollController] that governs this [DocumentScrollable]'s scroll
-  /// offset.
-  ///
-  /// `scrollController` is not used if this `SuperEditor` has an ancestor
-  /// `Scrollable`.
-  final ScrollController? scrollController;
 
   /// This widget's child, which should include a document.
   final Widget child;
@@ -69,7 +79,7 @@ class _DocumentScrollableState extends State<DocumentScrollable> with SingleTick
     super.initState();
     _scrollController = widget.scrollController ?? ScrollController();
 
-    WidgetsBinding.instance.addPostFrameCallback((timeStamp) {
+    onNextFrame((_) {
       // Wait until the next frame to attach to auto-scroller because
       // our ScrollController isn't attached to the Scrollable, yet.
       widget.autoScroller.attachScrollable(
@@ -77,6 +87,8 @@ class _DocumentScrollableState extends State<DocumentScrollable> with SingleTick
         () => _viewport,
         () => _scrollPosition,
       );
+
+      widget.scroller?.attach(_scrollPosition);
     });
   }
 
@@ -106,12 +118,17 @@ class _DocumentScrollableState extends State<DocumentScrollable> with SingleTick
     }
 
     if (widget.autoScroller != oldWidget.autoScroller) {
-      widget.autoScroller.detachScrollable();
+      oldWidget.autoScroller.detachScrollable();
       widget.autoScroller.attachScrollable(
         this,
         () => _viewport,
         () => _scrollPosition,
       );
+    }
+
+    if (widget.scroller != oldWidget.scroller) {
+      oldWidget.scroller?.detach();
+      widget.scroller?.attach(_scrollPosition);
     }
   }
 
@@ -129,6 +146,9 @@ class _DocumentScrollableState extends State<DocumentScrollable> with SingleTick
     }
 
     widget.autoScroller.detachScrollable();
+
+    widget.scroller?.detach();
+
     super.dispose();
   }
 
@@ -141,7 +161,8 @@ class _DocumentScrollableState extends State<DocumentScrollable> with SingleTick
   /// widget includes a `ScrollView` and this `State`'s render object
   /// is the viewport `RenderBox`.
   RenderBox get _viewport =>
-      (_findAncestorScrollable(context)?.context.findRenderObject() ?? context.findRenderObject()) as RenderBox;
+      (context.findAncestorScrollableWithVerticalScroll?.context.findRenderObject() ?? context.findRenderObject())
+          as RenderBox;
 
   /// Returns the `ScrollPosition` that controls the scroll offset of
   /// this widget.
@@ -155,25 +176,9 @@ class _DocumentScrollableState extends State<DocumentScrollable> with SingleTick
   /// is returned.
   ScrollPosition get _scrollPosition => _ancestorScrollPosition ?? _scrollController.position;
 
-  ScrollableState? _findAncestorScrollable(BuildContext context) {
-    final ancestorScrollable = Scrollable.maybeOf(context);
-    if (ancestorScrollable == null) {
-      return null;
-    }
-
-    final direction = ancestorScrollable.axisDirection;
-    // If the direction is horizontal, then we are inside a widget like a TabBar
-    // or a horizontal ListView, so we can't use the ancestor scrollable
-    if (direction == AxisDirection.left || direction == AxisDirection.right) {
-      return null;
-    }
-
-    return ancestorScrollable;
-  }
-
   @override
   Widget build(BuildContext context) {
-    final ancestorScrollable = _findAncestorScrollable(context);
+    final ancestorScrollable = context.findAncestorScrollableWithVerticalScroll;
     _ancestorScrollPosition = ancestorScrollable?.position;
 
     return Stack(
@@ -192,9 +197,53 @@ class _DocumentScrollableState extends State<DocumentScrollable> with SingleTick
   Widget _buildScroller({
     required Widget child,
   }) {
-    return SingleChildScrollView(
+    final scrollBehavior = ScrollConfiguration.of(context);
+    return _maybeBuildScrollbar(
+      behavior: scrollBehavior,
+      child: ScrollConfiguration(
+        behavior: scrollBehavior.copyWith(scrollbars: false),
+        child: SingleChildScrollView(
+          controller: _scrollController,
+          physics: const NeverScrollableScrollPhysics(),
+          child: child,
+        ),
+      ),
+    );
+  }
+
+  Widget _maybeBuildScrollbar({
+    required ScrollBehavior behavior,
+    required Widget child,
+  }) {
+    // We allow apps to prevent the custom scrollbar from being added by
+    // wrapping the editor with a `ScrollConfiguration` configured to not
+    // display scrollbars. However, at this moment we can't query this
+    // information from the BuildContext. As a workaround, we check whether
+    // or not the buildScrollbar method returns a ScrollBar. If it doesn't,
+    // this means the app doesn't want us to add our own ScrollBar.
+    //
+    // Change this after https://github.com/flutter/flutter/issues/141508 is solved.
+    final maybeScrollBar = behavior.buildScrollbar(
+      context,
+      child,
+      ScrollableDetails.vertical(controller: _scrollController),
+    );
+    if (maybeScrollBar == child) {
+      // The scroll behavior is configured to NOT show scrollbars.
+      return child;
+    }
+
+    // As we handle the scrolling gestures ourselves,
+    // we use NeverScrollableScrollPhysics to prevent SingleChildScrollView
+    // from scrolling. This also prevents the user from interacting
+    // with the scrollbar.
+    // We use a modified version of Flutter's Scrollbar that allows
+    // configuring it with a different scroll physics.
+    //
+    // See https://github.com/superlistapp/super_editor/issues/1628 for more details.
+    return ScrollbarWithCustomPhysics(
       controller: _scrollController,
-      physics: const NeverScrollableScrollPhysics(),
+      physics: behavior.getScrollPhysics(context),
       child: child,
     );
   }
@@ -355,6 +404,11 @@ class AutoScrollController with ChangeNotifier {
     }
 
     final scrollPosition = _getScrollPosition!();
+
+    if (scrollPosition.maxScrollExtent == 0) {
+      return;
+    }
+
     scrollPosition.jumpTo(
       (scrollPosition.pixels + delta).clamp(0.0, scrollPosition.maxScrollExtent),
     );
@@ -370,7 +424,9 @@ class AutoScrollController with ChangeNotifier {
     }
 
     if (pos is ScrollPositionWithSingleContext) {
-      pos.goBallistic(pixelsPerSecond);
+      if (pos.maxScrollExtent > 0) {
+        pos.goBallistic(pixelsPerSecond);
+      }
       pos.context.setIgnorePointer(false);
     }
   }

@@ -1,4 +1,6 @@
 import 'package:flutter/widgets.dart';
+import 'package:super_editor/src/core/editor.dart';
+import 'package:super_editor/src/infrastructure/composable_text.dart';
 
 import 'document_selection.dart';
 import 'document.dart';
@@ -11,6 +13,23 @@ import 'document.dart';
 /// this is passed around, instead of a direct reference to a
 /// [DocumentLayout].
 typedef DocumentLayoutResolver = DocumentLayout Function();
+
+/// An [Editable] that provides access to a [DocumentLayout] so that
+/// [EditCommand]s can make decisions based on the layout of the
+/// document in an editor.
+class DocumentLayoutEditable implements Editable {
+  const DocumentLayoutEditable(this._documentLayoutResolver);
+
+  final DocumentLayoutResolver _documentLayoutResolver;
+
+  DocumentLayout get documentLayout => _documentLayoutResolver();
+
+  @override
+  void onTransactionEnd(List<EditEvent> edits) {}
+
+  @override
+  void onTransactionStart() {}
+}
 
 /// Abstract representation of a document layout.
 ///
@@ -36,9 +55,22 @@ abstract class DocumentLayout {
   /// [DocumentPosition] for the first character within the paragraph.
   DocumentPosition? getDocumentPositionNearestToOffset(Offset layoutOffset);
 
-  /// Returns the bounding box of the component that renders the given
-  /// [position], or [null] if no corresponding component can be found, or
+  /// Returns the upstream edge or downstream edge of the content at the given
+  /// [position].
+  ///
+  /// The edge is defined by a zero-width [Rect] whose offset and height is determined
+  /// by the offset and height of the content at the given [position].
+  ///
+  /// The edge of a piece of content is helpful for sizing and positioning a caret.
+  Rect? getEdgeForPosition(DocumentPosition position);
+
+  /// Returns the bounding box around the given [position], within the associated
+  /// component, or `null` if no corresponding component can be found, or
   /// the corresponding component has not yet been laid out.
+  ///
+  /// For example, given a document layout that contains a text component that
+  /// says "Hello, world", calling `getRectForPosition()` for the third character
+  /// in that text component would return a bounding box for the character "l".
   Rect? getRectForPosition(DocumentPosition position);
 
   /// Returns a [Rect] that bounds the content selected between
@@ -103,6 +135,15 @@ mixin DocumentComponent<T extends StatefulWidget> on State<T> {
   /// node positions.
   Offset getOffsetForPosition(NodePosition nodePosition);
 
+  /// Returns the upstream edge or downstream edge of the content at the given
+  /// [position].
+  ///
+  /// The edge is defined by a zero-width [Rect] whose offset and height is determined
+  /// by the offset and height of the content at the given [position].
+  ///
+  /// The edge of a piece of content is helpful for sizing and positioning a caret.
+  Rect getEdgeForPosition(NodePosition nodePosition);
+
   /// Returns a [Rect] for the given [nodePosition], or throws
   /// an exception if the given [nodePosition] is not compatible
   /// with this component's node type.
@@ -110,6 +151,10 @@ mixin DocumentComponent<T extends StatefulWidget> on State<T> {
   /// If the given [nodePosition] corresponds to a single (x,y)
   /// offset rather than a [Rect], a [Rect] with zero width and
   /// height may be returned.
+  ///
+  /// For example, requesting the rect for position `3` in a text component
+  /// that says "Hello, world" would return a rectangle that bounds the
+  /// character "l".
   ///
   /// See [Document] for more information about [DocumentNode]s and
   /// node positions.
@@ -272,78 +317,116 @@ mixin DocumentComponent<T extends StatefulWidget> on State<T> {
 /// to provide is [childDocumentComponentKey], which is a `GlobalKey` that provides
 /// access to the child [DocumentComponent].
 mixin ProxyDocumentComponent<T extends StatefulWidget> implements DocumentComponent<T> {
+  @protected
   GlobalKey get childDocumentComponentKey;
 
-  DocumentComponent get childDocumentComponent => childDocumentComponentKey.currentState as DocumentComponent;
+  DocumentComponent get _childDocumentComponent => childDocumentComponentKey.currentState as DocumentComponent;
+
+  Offset _getChildOffset(Offset myOffset) {
+    final myBox = context.findRenderObject() as RenderBox;
+    final childBox = childDocumentComponentKey.currentContext!.findRenderObject() as RenderBox;
+    return childBox.globalToLocal(myOffset, ancestor: myBox);
+  }
+
+  Offset _getOffsetFromChild(Offset childOffset) {
+    final myBox = context.findRenderObject() as RenderBox;
+    final childBox = childDocumentComponentKey.currentContext!.findRenderObject() as RenderBox;
+    return childBox.localToGlobal(childOffset, ancestor: myBox);
+  }
+
+  Rect _getRectFromChild(Rect childRect) {
+    return Rect.fromPoints(
+      _getOffsetFromChild(childRect.topLeft),
+      _getOffsetFromChild(childRect.bottomRight),
+    );
+  }
 
   @override
   NodePosition? getPositionAtOffset(Offset localOffset) {
-    return childDocumentComponent.getPositionAtOffset(localOffset);
+    return _childDocumentComponent.getPositionAtOffset(_getChildOffset(localOffset));
   }
 
   @override
   Offset getOffsetForPosition(NodePosition nodePosition) {
-    return childDocumentComponent.getOffsetForPosition(nodePosition);
+    // In addition to the standard `getOffsetForPosition` of the child component, the proxy
+    // also calls `_getOffsetFromChild`, which returns the offset from the top-left of this
+    // proxy box, to the top-left of the child. Some proxy components, such as a task,
+    // add content that shifts the child component, like adding a checkbox. Any such
+    // shift of the child component must be accounted for when reporting a content offset.
+    return _getOffsetFromChild(
+      _childDocumentComponent.getOffsetForPosition(nodePosition),
+    );
+  }
+
+  @override
+  Rect getEdgeForPosition(NodePosition nodePosition) {
+    final childEdge = _childDocumentComponent.getEdgeForPosition(nodePosition);
+    return _getRectFromChild(childEdge);
   }
 
   @override
   Rect getRectForPosition(NodePosition nodePosition) {
-    return childDocumentComponent.getRectForPosition(nodePosition);
+    final childRect = _childDocumentComponent.getRectForPosition(nodePosition);
+    return _getRectFromChild(childRect);
   }
 
   @override
   Rect getRectForSelection(NodePosition baseNodePosition, NodePosition extentNodePosition) {
-    return childDocumentComponent.getRectForSelection(baseNodePosition, extentNodePosition);
+    final childRect = _childDocumentComponent.getRectForSelection(baseNodePosition, extentNodePosition);
+    return _getRectFromChild(childRect);
   }
 
   @override
   NodePosition getBeginningPosition() {
-    return childDocumentComponent.getBeginningPosition();
+    return _childDocumentComponent.getBeginningPosition();
   }
 
   @override
   NodePosition getBeginningPositionNearX(double x) {
-    return childDocumentComponent.getBeginningPositionNearX(x);
+    return _childDocumentComponent.getBeginningPositionNearX(_getChildOffset(Offset(x, 0)).dx);
   }
 
   @override
   NodePosition? movePositionLeft(NodePosition currentPosition, [MovementModifier? movementModifier]) {
-    return childDocumentComponent.movePositionLeft(currentPosition, movementModifier);
+    return _childDocumentComponent.movePositionLeft(currentPosition, movementModifier);
   }
 
   @override
   NodePosition? movePositionRight(NodePosition currentPosition, [MovementModifier? movementModifier]) {
-    return childDocumentComponent.movePositionRight(currentPosition, movementModifier);
+    return _childDocumentComponent.movePositionRight(currentPosition, movementModifier);
   }
 
   @override
   NodePosition? movePositionUp(NodePosition currentPosition) {
-    return childDocumentComponent.movePositionUp(currentPosition);
+    return _childDocumentComponent.movePositionUp(currentPosition);
   }
 
   @override
   NodePosition? movePositionDown(NodePosition currentPosition) {
-    return childDocumentComponent.movePositionDown(currentPosition);
+    return _childDocumentComponent.movePositionDown(currentPosition);
   }
 
   @override
   NodePosition getEndPosition() {
-    return childDocumentComponent.getEndPosition();
+    return _childDocumentComponent.getEndPosition();
   }
 
   @override
   NodePosition getEndPositionNearX(double x) {
-    return childDocumentComponent.getEndPositionNearX(x);
+    return _childDocumentComponent.getEndPositionNearX(_getChildOffset(Offset(x, 0)).dx);
   }
 
   @override
   NodeSelection? getSelectionInRange(Offset localBaseOffset, Offset localExtentOffset) {
-    return childDocumentComponent.getSelectionInRange(localBaseOffset, localExtentOffset);
+    return _childDocumentComponent.getSelectionInRange(
+      _getChildOffset(localBaseOffset),
+      _getChildOffset(localExtentOffset),
+    );
   }
 
   @override
   NodeSelection getCollapsedSelectionAt(NodePosition nodePosition) {
-    return childDocumentComponent.getCollapsedSelectionAt(nodePosition);
+    return _childDocumentComponent.getCollapsedSelectionAt(nodePosition);
   }
 
   @override
@@ -351,20 +434,20 @@ mixin ProxyDocumentComponent<T extends StatefulWidget> implements DocumentCompon
     required NodePosition basePosition,
     required NodePosition extentPosition,
   }) {
-    return childDocumentComponent.getSelectionBetween(basePosition: basePosition, extentPosition: extentPosition);
+    return _childDocumentComponent.getSelectionBetween(basePosition: basePosition, extentPosition: extentPosition);
   }
 
   @override
   NodeSelection getSelectionOfEverything() {
-    return childDocumentComponent.getSelectionOfEverything();
+    return _childDocumentComponent.getSelectionOfEverything();
   }
 
   @override
-  bool isVisualSelectionSupported() => childDocumentComponent.isVisualSelectionSupported();
+  bool isVisualSelectionSupported() => _childDocumentComponent.isVisualSelectionSupported();
 
   @override
   MouseCursor? getDesiredCursorAtOffset(Offset localOffset) {
-    return childDocumentComponent.getDesiredCursorAtOffset(localOffset);
+    return _childDocumentComponent.getDesiredCursorAtOffset(_getChildOffset(localOffset));
   }
 }
 
@@ -388,6 +471,7 @@ class MovementModifier {
   /// See also:
   ///
   ///  * [line], which moves text selection line-by-line.
+  ///  * [paragraph], which moves text selection paragraph-by-paragraph.
   static const word = MovementModifier('word');
 
   /// Move text selection line-by-line.
@@ -395,7 +479,16 @@ class MovementModifier {
   /// See also:
   ///
   ///  * [word], which moves text selection word-by-word.
+  ///  * [paragraph], which moves text selection paragraph-by-paragraph.
   static const line = MovementModifier('line');
+
+  /// Move text selection paragraph-by-paragraph.
+  ///
+  /// See also:
+  ///
+  ///  * [word], which moves text selection word-by-word.
+  ///  * [line], which moves text selection line-by-line.
+  static const paragraph = MovementModifier('paragraph');
 
   /// Creates a movement modifier that is globally uniquely identified by the
   /// provided [id].

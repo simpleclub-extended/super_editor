@@ -1,3 +1,21 @@
+## [0.3.0] - Feb, 2024
+ * [BREAKING] - `AttributedText` and `SpanRange` constructors now use positional parameters istead of named parameters.
+ * [FIX] - `AttributedText` now supports differents links for different URLs in the same text blob - previously all links were sent to the same URL withing a single `AttributedText`.
+ * [FIX] - `collapseSpans` now reports the correct ending index, which was previously off by one.
+ * `AttributedText` now has a substring method and length property to avoid needing to access the inner `text` string.
+ * `AttributionSpan` now has a `range` property to get a non-directional span of text.
+ * `AttributedText` can visit and report attribution spans instead of just visiting individual attribution markers.
+ * Added query methods:
+   * `getAttributionSpans()`
+   * `getAttributionSpansByFilter()`
+ * `AttributedText` now allows you to `addAttribution()` without auto-merging with preceding and following attributions (#1198)
+
+## [0.2.2] - May, 2023
+Upgrade Dart constraints to explicitly include Dart 3. Make `markers` public on `AttributedSpans`.
+
+## [0.2.1] - January, 2023
+Add `getAttributedRange()`, which returns a range that includes a given set of attributions.
+
 ## [0.2.0] - July, 2022
 
 BREAKING - Attributions in an `AttributedText` are now visited by a `AttributionVisitor` instead of a callback, and the visitor receives span markers in a more useful way.

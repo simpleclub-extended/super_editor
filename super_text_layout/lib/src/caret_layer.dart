@@ -8,6 +8,7 @@ class TextLayoutCaret extends StatefulWidget {
     Key? key,
     required this.textLayout,
     this.blinkController,
+    this.blinkTimingMode = BlinkTimingMode.ticker,
     this.blinkCaret = true,
     required this.style,
     required this.position,
@@ -16,6 +17,7 @@ class TextLayoutCaret extends StatefulWidget {
 
   final TextLayout textLayout;
   final BlinkController? blinkController;
+  final BlinkTimingMode blinkTimingMode;
   final bool blinkCaret;
   final CaretStyle style;
   final TextPosition? position;
@@ -32,7 +34,7 @@ class TextLayoutCaretState extends State<TextLayoutCaret> with TickerProviderSta
   @override
   void initState() {
     super.initState();
-    _blinkController = widget.blinkController ?? BlinkController(tickerProvider: this);
+    _blinkController = _obtainBlinkController();
     if (widget.blinkCaret) {
       _blinkController.startBlinking();
     }
@@ -54,7 +56,7 @@ class TextLayoutCaretState extends State<TextLayoutCaret> with TickerProviderSta
           oldBlinkController.dispose();
         });
       }
-      _blinkController = widget.blinkController ?? BlinkController(tickerProvider: this);
+      _blinkController = _obtainBlinkController();
     }
 
     if (widget.position != oldWidget.position && widget.blinkCaret) {
@@ -73,16 +75,47 @@ class TextLayoutCaretState extends State<TextLayoutCaret> with TickerProviderSta
     super.dispose();
   }
 
+  BlinkController _obtainBlinkController() {
+    if (widget.blinkController != null) {
+      return widget.blinkController!;
+    }
+
+    switch (widget.blinkTimingMode) {
+      case BlinkTimingMode.ticker:
+        return BlinkController(tickerProvider: this);
+      case BlinkTimingMode.timer:
+        return BlinkController.withTimer();
+    }
+  }
+
   @visibleForTesting
   bool get isCaretPresent => widget.position != null && widget.position!.offset >= 0;
 
+  @visibleForTesting
+  Offset? get caretOffset => isCaretPresent ? widget.textLayout.getOffsetForCaret(widget.position!) : null;
+
+  @visibleForTesting
+  double? get caretHeight => isCaretPresent
+      ? widget.textLayout.getHeightForCaret(widget.position!) ??
+          widget.textLayout.getLineHeightAtPosition(widget.position!)
+      : null;
+
+  @visibleForTesting
+  Rect? get localCaretGeometry => isCaretPresent ? caretOffset! & Size(widget.style.width, caretHeight!) : null;
+
+  Rect? get globalCaretGeometry {
+    if (!isCaretPresent) {
+      return null;
+    }
+
+    final topLeftInGlobalSpace = (context.findRenderObject() as RenderBox).localToGlobal(Offset.zero);
+    return localCaretGeometry!.translate(topLeftInGlobalSpace.dx, topLeftInGlobalSpace.dy);
+  }
+
   @override
   Widget build(BuildContext context) {
-    final offset = isCaretPresent ? widget.textLayout.getOffsetForCaret(widget.position!) : null;
-    final height = isCaretPresent
-        ? widget.textLayout.getHeightForCaret(widget.position!) ??
-            widget.textLayout.getLineHeightAtPosition(widget.position!)
-        : null;
+    final offset = caretOffset;
+    final height = caretHeight;
 
     return Stack(
       clipBehavior: Clip.none,

@@ -51,11 +51,6 @@ class _SuperTextExampleScreenState extends State<SuperTextExampleScreen> with Ti
   }
 
   @override
-  void dispose() {
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: SingleChildScrollView(
@@ -83,6 +78,7 @@ class _SuperTextExampleScreenState extends State<SuperTextExampleScreen> with Ti
                 _buildSingleCaret(),
                 _buildSingleSelectionHighlight(),
                 _buildSingleSelectionHighlightRainbow(),
+                _buildComposingRegionUnderline(),
                 _buildMultiUserSelections(),
                 _buildEmptySelection(),
                 const SizedBox(height: 48),
@@ -264,6 +260,28 @@ class _SuperTextExampleScreenState extends State<SuperTextExampleScreen> with Ti
                   selection: const TextSelection(baseOffset: 11, extentOffset: 21),
                 );
               }),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildComposingRegionUnderline() {
+    return _buildExampleContainer(
+      child: SuperText(
+        richText: const TextSpan(
+          text: "Can display underlines like the composing reg",
+          style: _textStyle,
+        ),
+        layerBeneathBuilder: (context, textLayout) {
+          return TextUnderlineLayer(
+            textLayout: textLayout,
+            underlines: const [
+              TextLayoutUnderline(
+                style: UnderlineStyle(color: Colors.black),
+                range: TextSelection(baseOffset: 42, extentOffset: 45),
+              ),
             ],
           );
         },

@@ -1,5 +1,5 @@
-import 'package:super_editor/super_editor.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:super_editor/super_editor.dart';
 import 'package:super_editor_markdown/super_editor_markdown.dart';
 
 void main() {
@@ -9,7 +9,7 @@ void main() {
         final doc = MutableDocument(nodes: [
           ParagraphNode(
             id: '1',
-            text: AttributedText(text: 'My Header'),
+            text: AttributedText('My Header'),
           ),
         ]);
 
@@ -32,19 +32,72 @@ void main() {
         expect(serializeDocumentToMarkdown(doc), '###### My Header');
       });
 
+      test('header with left alignment', () {
+        final doc = MutableDocument(nodes: [
+          ParagraphNode(
+            id: '1',
+            text: AttributedText('Header1'),
+            metadata: {
+              'textAlign': 'left',
+              'blockType': header1Attribution,
+            },
+          ),
+        ]);
+        // Even when using superEditor markdown syntax, which has support
+        // for text alignment, we don't add an alignment token when
+        // the paragraph is left-aligned.
+        // Paragraphs are left-aligned by default, so it isn't necessary
+        // to serialize the alignment token.
+        expect(serializeDocumentToMarkdown(doc), '# Header1');
+      });
+
+      test('header with center alignment', () {
+        final doc = MutableDocument(nodes: [
+          ParagraphNode(
+            id: '1',
+            text: AttributedText('Header1'),
+            metadata: {
+              'textAlign': 'center',
+              'blockType': header1Attribution,
+            },
+          ),
+        ]);
+        expect(serializeDocumentToMarkdown(doc), ':---:\n# Header1');
+      });
+
+      test('header with right alignment', () {
+        final doc = MutableDocument(nodes: [
+          ParagraphNode(
+            id: '1',
+            text: AttributedText('Header1'),
+            metadata: {
+              'textAlign': 'right',
+              'blockType': header1Attribution,
+            },
+          ),
+        ]);
+        expect(serializeDocumentToMarkdown(doc), '---:\n# Header1');
+      });
+
+      test('header with justify alignment', () {
+        final doc = MutableDocument(nodes: [
+          ParagraphNode(
+            id: '1',
+            text: AttributedText('Header1'),
+            metadata: {
+              'textAlign': 'justify',
+              'blockType': header1Attribution,
+            },
+          ),
+        ]);
+        expect(serializeDocumentToMarkdown(doc), '-::-\n# Header1');
+      });
+
       test('header with styles', () {
         final doc = MutableDocument(nodes: [
           ParagraphNode(
             id: '1',
-            text: AttributedText(
-              text: 'My Header',
-              spans: AttributedSpans(
-                attributions: [
-                  const SpanMarker(attribution: boldAttribution, offset: 3, markerType: SpanMarkerType.start),
-                  const SpanMarker(attribution: boldAttribution, offset: 8, markerType: SpanMarkerType.end),
-                ],
-              ),
-            ),
+            text: attributedTextFromMarkdown("My **Header**"),
             metadata: {'blockType': header1Attribution},
           ),
         ]);
@@ -56,7 +109,7 @@ void main() {
         final doc = MutableDocument(nodes: [
           ParagraphNode(
             id: '1',
-            text: AttributedText(text: 'This is a blockquote'),
+            text: AttributedText('This is a blockquote'),
             metadata: {'blockType': blockquoteAttribution},
           ),
         ]);
@@ -68,15 +121,7 @@ void main() {
         final doc = MutableDocument(nodes: [
           ParagraphNode(
             id: '1',
-            text: AttributedText(
-              text: 'This is a blockquote',
-              spans: AttributedSpans(
-                attributions: [
-                  const SpanMarker(attribution: boldAttribution, offset: 10, markerType: SpanMarkerType.start),
-                  const SpanMarker(attribution: boldAttribution, offset: 19, markerType: SpanMarkerType.end),
-                ],
-              ),
-            ),
+            text: attributedTextFromMarkdown('This is a **blockquote**'),
             metadata: {'blockType': blockquoteAttribution},
           ),
         ]);
@@ -88,7 +133,7 @@ void main() {
         final doc = MutableDocument(nodes: [
           ParagraphNode(
             id: '1',
-            text: AttributedText(text: 'This is some code'),
+            text: AttributedText('This is some code'),
             metadata: {'blockType': codeAttribution},
           ),
         ]);
@@ -106,7 +151,7 @@ This is some code
         final doc = MutableDocument(nodes: [
           ParagraphNode(
             id: '1',
-            text: AttributedText(text: 'This is a paragraph.'),
+            text: AttributedText('This is a paragraph.'),
           ),
         ]);
 
@@ -117,15 +162,7 @@ This is some code
         final doc = MutableDocument(nodes: [
           ParagraphNode(
             id: '1',
-            text: AttributedText(
-              text: 'This is a paragraph.',
-              spans: AttributedSpans(
-                attributions: [
-                  const SpanMarker(attribution: boldAttribution, offset: 5, markerType: SpanMarkerType.start),
-                  const SpanMarker(attribution: boldAttribution, offset: 8, markerType: SpanMarkerType.end),
-                ],
-              ),
-            ),
+            text: attributedTextFromMarkdown('This **is a** paragraph.'),
           ),
         ]);
 
@@ -136,17 +173,7 @@ This is some code
         final doc = MutableDocument(nodes: [
           ParagraphNode(
             id: '1',
-            text: AttributedText(
-              text: 'This is a paragraph.',
-              spans: AttributedSpans(
-                attributions: [
-                  const SpanMarker(attribution: boldAttribution, offset: 5, markerType: SpanMarkerType.start),
-                  const SpanMarker(attribution: boldAttribution, offset: 8, markerType: SpanMarkerType.end),
-                  const SpanMarker(attribution: italicsAttribution, offset: 5, markerType: SpanMarkerType.start),
-                  const SpanMarker(attribution: italicsAttribution, offset: 8, markerType: SpanMarkerType.end),
-                ],
-              ),
-            ),
+            text: attributedTextFromMarkdown('This ***is a*** paragraph.'),
           ),
         ]);
 
@@ -157,17 +184,7 @@ This is some code
         final doc = MutableDocument(nodes: [
           ParagraphNode(
             id: '1',
-            text: AttributedText(
-              text: 'This is a paragraph.',
-              spans: AttributedSpans(
-                attributions: [
-                  const SpanMarker(attribution: boldAttribution, offset: 0, markerType: SpanMarkerType.start),
-                  const SpanMarker(attribution: boldAttribution, offset: 6, markerType: SpanMarkerType.end),
-                  const SpanMarker(attribution: italicsAttribution, offset: 8, markerType: SpanMarkerType.start),
-                  const SpanMarker(attribution: italicsAttribution, offset: 19, markerType: SpanMarkerType.end),
-                ],
-              ),
-            ),
+            text: attributedTextFromMarkdown('**This is** *a paragraph.*'),
           ),
         ]);
 
@@ -178,17 +195,7 @@ This is some code
         final doc = MutableDocument(nodes: [
           ParagraphNode(
             id: '1',
-            text: AttributedText(
-              text: 'This is a paragraph.',
-              spans: AttributedSpans(
-                attributions: [
-                  const SpanMarker(attribution: boldAttribution, offset: 5, markerType: SpanMarkerType.start),
-                  const SpanMarker(attribution: boldAttribution, offset: 8, markerType: SpanMarkerType.end),
-                  const SpanMarker(attribution: italicsAttribution, offset: 5, markerType: SpanMarkerType.start),
-                  const SpanMarker(attribution: italicsAttribution, offset: 18, markerType: SpanMarkerType.end),
-                ],
-              ),
-            ),
+            text: attributedTextFromMarkdown('This ***is a** paragraph*.'),
           ),
         ]);
 
@@ -199,9 +206,11 @@ This is some code
         final doc = MutableDocument(nodes: [
           ParagraphNode(
             id: '1',
+            // TODO: get code syntax to work
+            // text: attributedTextFromMarkdown('This `**is a**` paragraph.'),
             text: AttributedText(
-              text: 'This is a paragraph.',
-              spans: AttributedSpans(
+              'This is a paragraph.',
+              AttributedSpans(
                 attributions: [
                   const SpanMarker(attribution: boldAttribution, offset: 5, markerType: SpanMarkerType.start),
                   const SpanMarker(attribution: boldAttribution, offset: 8, markerType: SpanMarkerType.end),
@@ -220,21 +229,7 @@ This is some code
         final doc = MutableDocument(nodes: [
           ParagraphNode(
             id: '1',
-            text: AttributedText(
-              text: 'This is a paragraph.',
-              spans: AttributedSpans(
-                attributions: [
-                  SpanMarker(
-                      attribution: LinkAttribution(url: Uri.https('example.org', '')),
-                      offset: 10,
-                      markerType: SpanMarkerType.start),
-                  SpanMarker(
-                      attribution: LinkAttribution(url: Uri.https('example.org', '')),
-                      offset: 18,
-                      markerType: SpanMarkerType.end),
-                ],
-              ),
-            ),
+            text: attributedTextFromMarkdown('This is a [paragraph](https://example.org).'),
           ),
         ]);
 
@@ -245,23 +240,7 @@ This is some code
         final doc = MutableDocument(nodes: [
           ParagraphNode(
             id: '1',
-            text: AttributedText(
-              text: 'This is a paragraph.',
-              spans: AttributedSpans(
-                attributions: [
-                  SpanMarker(
-                      attribution: LinkAttribution(url: Uri.https('example.org', '')),
-                      offset: 10,
-                      markerType: SpanMarkerType.start),
-                  SpanMarker(
-                      attribution: LinkAttribution(url: Uri.https('example.org', '')),
-                      offset: 18,
-                      markerType: SpanMarkerType.end),
-                  const SpanMarker(attribution: boldAttribution, offset: 10, markerType: SpanMarkerType.start),
-                  const SpanMarker(attribution: boldAttribution, offset: 18, markerType: SpanMarkerType.end),
-                ],
-              ),
-            ),
+            text: attributedTextFromMarkdown('This is a [**paragraph**](https://example.org).'),
           ),
         ]);
 
@@ -272,23 +251,7 @@ This is some code
         final doc = MutableDocument(nodes: [
           ParagraphNode(
             id: '1',
-            text: AttributedText(
-              text: 'This is a paragraph.',
-              spans: AttributedSpans(
-                attributions: [
-                  SpanMarker(
-                      attribution: LinkAttribution(url: Uri.https('example.org', '')),
-                      offset: 0,
-                      markerType: SpanMarkerType.start),
-                  SpanMarker(
-                      attribution: LinkAttribution(url: Uri.https('example.org', '')),
-                      offset: 18,
-                      markerType: SpanMarkerType.end),
-                  const SpanMarker(attribution: boldAttribution, offset: 5, markerType: SpanMarkerType.start),
-                  const SpanMarker(attribution: boldAttribution, offset: 8, markerType: SpanMarkerType.end),
-                ],
-              ),
-            ),
+            text: attributedTextFromMarkdown('[This **is a** paragraph](https://example.org).'),
           ),
         ]);
 
@@ -299,15 +262,7 @@ This is some code
         final doc = MutableDocument(nodes: [
           ParagraphNode(
             id: '1',
-            text: AttributedText(
-              text: 'This is a paragraph.',
-              spans: AttributedSpans(
-                attributions: [
-                  SpanMarker(attribution: underlineAttribution, offset: 10, markerType: SpanMarkerType.start),
-                  SpanMarker(attribution: underlineAttribution, offset: 18, markerType: SpanMarkerType.end),
-                ],
-              ),
-            ),
+            text: attributedTextFromMarkdown('This is a ¬paragraph¬.'),
           ),
         ]);
 
@@ -318,15 +273,7 @@ This is some code
         final doc = MutableDocument(nodes: [
           ParagraphNode(
             id: '1',
-            text: AttributedText(
-              text: 'This is a paragraph.',
-              spans: AttributedSpans(
-                attributions: [
-                  SpanMarker(attribution: strikethroughAttribution, offset: 10, markerType: SpanMarkerType.start),
-                  SpanMarker(attribution: strikethroughAttribution, offset: 18, markerType: SpanMarkerType.end),
-                ],
-              ),
-            ),
+            text: attributedTextFromMarkdown('This is a ~paragraph~.'),
           ),
         ]);
 
@@ -337,17 +284,7 @@ This is some code
         final doc = MutableDocument(nodes: [
           ParagraphNode(
             id: '1',
-            text: AttributedText(
-              text: 'First LinkSecond Link',
-              spans: AttributedSpans(
-                attributions: [
-                  SpanMarker(attribution: LinkAttribution(url: Uri.https('example.org', '')), offset: 0, markerType: SpanMarkerType.start),
-                  SpanMarker(attribution: LinkAttribution(url: Uri.https('example.org', '')), offset: 9, markerType: SpanMarkerType.end),
-                  SpanMarker(attribution: LinkAttribution(url: Uri.https('github.com', '')), offset: 10, markerType: SpanMarkerType.start),
-                  SpanMarker(attribution: LinkAttribution(url: Uri.https('github.com', '')), offset: 20, markerType: SpanMarkerType.end),
-                ],
-              ),
-            ),
+            text: attributedTextFromMarkdown('[First Link](https://example.org)[Second Link](https://github.com)'),
           ),
         ]);
 
@@ -358,7 +295,7 @@ This is some code
         final doc = MutableDocument(nodes: [
           ParagraphNode(
             id: '1',
-            text: AttributedText(text: 'Paragraph1'),
+            text: AttributedText('Paragraph1'),
             metadata: {
               'textAlign': 'left',
             },
@@ -377,7 +314,7 @@ This is some code
         final doc = MutableDocument(nodes: [
           ParagraphNode(
             id: '1',
-            text: AttributedText(text: 'Paragraph1'),
+            text: AttributedText('Paragraph1'),
             metadata: {
               'textAlign': 'center',
             },
@@ -391,7 +328,7 @@ This is some code
         final doc = MutableDocument(nodes: [
           ParagraphNode(
             id: '1',
-            text: AttributedText(text: 'Paragraph1'),
+            text: AttributedText('Paragraph1'),
             metadata: {
               'textAlign': 'right',
             },
@@ -401,11 +338,25 @@ This is some code
         expect(serializeDocumentToMarkdown(doc), '---:\nParagraph1');
       });
 
+      test('paragraph with justify alignment', () {
+        final doc = MutableDocument(nodes: [
+          ParagraphNode(
+            id: '1',
+            text: AttributedText('Paragraph1'),
+            metadata: {
+              'textAlign': 'justify',
+            },
+          ),
+        ]);
+
+        expect(serializeDocumentToMarkdown(doc), '-::-\nParagraph1');
+      });
+
       test("doesn't serialize text alignment when not using supereditor syntax", () {
         final doc = MutableDocument(nodes: [
           ParagraphNode(
             id: '1',
-            text: AttributedText(text: 'Paragraph1'),
+            text: AttributedText('Paragraph1'),
             metadata: {
               'textAlign': 'center',
             },
@@ -418,9 +369,9 @@ This is some code
       test('empty paragraph', () {
         final serialized = serializeDocumentToMarkdown(
           MutableDocument(nodes: [
-            ParagraphNode(id: '1', text: AttributedText(text: 'Paragraph1')),
-            ParagraphNode(id: '2', text: AttributedText(text: '')),
-            ParagraphNode(id: '3', text: AttributedText(text: 'Paragraph3')),
+            ParagraphNode(id: '1', text: AttributedText('Paragraph1')),
+            ParagraphNode(id: '2', text: AttributedText('')),
+            ParagraphNode(id: '3', text: AttributedText('Paragraph3')),
           ]),
         );
 
@@ -431,12 +382,51 @@ This is some code
 Paragraph3""");
       });
 
+      test('removes all text attributions when serializing an empty paragraph', () {
+        final serialized = serializeDocumentToMarkdown(
+          MutableDocument(nodes: [
+            ParagraphNode(id: '1', text: AttributedText('Paragraph1')),
+            ParagraphNode(
+              id: '2',
+              text: AttributedText(
+                '',
+                AttributedSpans(
+                  attributions: [
+                    SpanMarker(attribution: boldAttribution, offset: 0, markerType: SpanMarkerType.start),
+                    SpanMarker(attribution: boldAttribution, offset: 0, markerType: SpanMarkerType.end),
+                  ],
+                ),
+              ),
+            ),
+            ParagraphNode(
+              id: '3',
+              text: AttributedText(
+                '',
+                AttributedSpans(
+                  attributions: [
+                    SpanMarker(attribution: boldAttribution, offset: 0, markerType: SpanMarkerType.start),
+                    SpanMarker(attribution: boldAttribution, offset: 0, markerType: SpanMarkerType.end),
+                  ],
+                ),
+              ),
+            ),
+          ]),
+        );
+
+        // Ensure the attributions were ignored for the empty paragraphs.
+        expect(serialized, """Paragraph1
+
+
+
+""");
+      });
+
       test('separates multiple paragraphs with blank lines', () {
         final serialized = serializeDocumentToMarkdown(
           MutableDocument(nodes: [
-            ParagraphNode(id: '1', text: AttributedText(text: 'Paragraph1')),
-            ParagraphNode(id: '2', text: AttributedText(text: 'Paragraph2')),
-            ParagraphNode(id: '3', text: AttributedText(text: 'Paragraph3')),
+            ParagraphNode(id: '1', text: AttributedText('Paragraph1')),
+            ParagraphNode(id: '2', text: AttributedText('Paragraph2')),
+            ParagraphNode(id: '3', text: AttributedText('Paragraph3')),
           ]),
         );
 
@@ -450,7 +440,7 @@ Paragraph3""");
       test('separates paragraph from other blocks with blank lines', () {
         final serialized = serializeDocumentToMarkdown(
           MutableDocument(nodes: [
-            ParagraphNode(id: '1', text: AttributedText(text: 'First Paragraph')),
+            ParagraphNode(id: '1', text: AttributedText('First Paragraph')),
             HorizontalRuleNode(id: '2'),
           ]),
         );
@@ -461,8 +451,8 @@ Paragraph3""");
       test('preserves linebreaks at the end of a paragraph', () {
         final serialized = serializeDocumentToMarkdown(
           MutableDocument(nodes: [
-            ParagraphNode(id: '1', text: AttributedText(text: 'Paragraph1\n\n')),
-            ParagraphNode(id: '2', text: AttributedText(text: 'Paragraph2')),
+            ParagraphNode(id: '1', text: AttributedText('Paragraph1\n\n')),
+            ParagraphNode(id: '2', text: AttributedText('Paragraph2')),
           ]),
         );
 
@@ -472,7 +462,7 @@ Paragraph3""");
       test('preserves linebreaks within a paragraph', () {
         final serialized = serializeDocumentToMarkdown(
           MutableDocument(nodes: [
-            ParagraphNode(id: '1', text: AttributedText(text: 'Line1\n\nLine2')),
+            ParagraphNode(id: '1', text: AttributedText('Line1\n\nLine2')),
           ]),
         );
 
@@ -482,8 +472,8 @@ Paragraph3""");
       test('preserves linebreaks at the beginning of a paragraph', () {
         final serialized = serializeDocumentToMarkdown(
           MutableDocument(nodes: [
-            ParagraphNode(id: '1', text: AttributedText(text: '\n\nParagraph1')),
-            ParagraphNode(id: '2', text: AttributedText(text: 'Paragraph2')),
+            ParagraphNode(id: '1', text: AttributedText('\n\nParagraph1')),
+            ParagraphNode(id: '2', text: AttributedText('Paragraph2')),
           ]),
         );
 
@@ -502,6 +492,45 @@ Paragraph3""");
         expect(serializeDocumentToMarkdown(doc), '![some alt text](https://someimage.com/the/image.png)');
       });
 
+      test('image with size', () {
+        final doc = MutableDocument(nodes: [
+          ImageNode(
+            id: '1',
+            imageUrl: 'https://someimage.com/the/image.png',
+            altText: 'some alt text',
+            expectedBitmapSize: const ExpectedSize(500, 400),
+          ),
+        ]);
+
+        expect(serializeDocumentToMarkdown(doc), '![some alt text](https://someimage.com/the/image.png =500x400)');
+      });
+
+      test('image with width', () {
+        final doc = MutableDocument(nodes: [
+          ImageNode(
+            id: '1',
+            imageUrl: 'https://someimage.com/the/image.png',
+            altText: 'some alt text',
+            expectedBitmapSize: ExpectedSize(300, null),
+          ),
+        ]);
+
+        expect(serializeDocumentToMarkdown(doc), '![some alt text](https://someimage.com/the/image.png =300x)');
+      });
+
+      test('image with height', () {
+        final doc = MutableDocument(nodes: [
+          ImageNode(
+            id: '1',
+            imageUrl: 'https://someimage.com/the/image.png',
+            altText: 'some alt text',
+            expectedBitmapSize: ExpectedSize(null, 200),
+          ),
+        ]);
+
+        expect(serializeDocumentToMarkdown(doc), '![some alt text](https://someimage.com/the/image.png =x200)');
+      });
+
       test('horizontal rule', () {
         final doc = MutableDocument(nodes: [
           HorizontalRuleNode(
@@ -517,29 +546,29 @@ Paragraph3""");
           ListItemNode(
             id: '1',
             itemType: ListItemType.unordered,
-            text: AttributedText(text: 'Unordered 1'),
+            text: AttributedText('Unordered 1'),
           ),
           ListItemNode(
             id: '2',
             itemType: ListItemType.unordered,
-            text: AttributedText(text: 'Unordered 2'),
+            text: AttributedText('Unordered 2'),
           ),
           ListItemNode(
             id: '3',
             itemType: ListItemType.unordered,
             indent: 1,
-            text: AttributedText(text: 'Unordered 2.1'),
+            text: AttributedText('Unordered 2.1'),
           ),
           ListItemNode(
             id: '4',
             itemType: ListItemType.unordered,
             indent: 1,
-            text: AttributedText(text: 'Unordered 2.2'),
+            text: AttributedText('Unordered 2.2'),
           ),
           ListItemNode(
             id: '5',
             itemType: ListItemType.unordered,
-            text: AttributedText(text: 'Unordered 3'),
+            text: AttributedText('Unordered 3'),
           ),
         ]);
 
@@ -559,15 +588,7 @@ Paragraph3""");
           ListItemNode(
             id: '1',
             itemType: ListItemType.unordered,
-            text: AttributedText(
-              text: 'Unordered 1',
-              spans: AttributedSpans(
-                attributions: [
-                  const SpanMarker(attribution: boldAttribution, offset: 0, markerType: SpanMarkerType.start),
-                  const SpanMarker(attribution: boldAttribution, offset: 8, markerType: SpanMarkerType.end),
-                ],
-              ),
-            ),
+            text: attributedTextFromMarkdown('**Unordered** 1'),
           ),
         ]);
 
@@ -579,29 +600,29 @@ Paragraph3""");
           ListItemNode(
             id: '1',
             itemType: ListItemType.ordered,
-            text: AttributedText(text: 'Ordered 1'),
+            text: AttributedText('Ordered 1'),
           ),
           ListItemNode(
             id: '2',
             itemType: ListItemType.ordered,
-            text: AttributedText(text: 'Ordered 2'),
+            text: AttributedText('Ordered 2'),
           ),
           ListItemNode(
             id: '3',
             itemType: ListItemType.ordered,
             indent: 1,
-            text: AttributedText(text: 'Ordered 2.1'),
+            text: AttributedText('Ordered 2.1'),
           ),
           ListItemNode(
             id: '4',
             itemType: ListItemType.ordered,
             indent: 1,
-            text: AttributedText(text: 'Ordered 2.2'),
+            text: AttributedText('Ordered 2.2'),
           ),
           ListItemNode(
             id: '5',
             itemType: ListItemType.ordered,
-            text: AttributedText(text: 'Ordered 3'),
+            text: AttributedText('Ordered 3'),
           ),
         ]);
 
@@ -621,78 +642,151 @@ Paragraph3""");
           ListItemNode(
             id: '1',
             itemType: ListItemType.ordered,
-            text: AttributedText(
-              text: 'Ordered 1',
-              spans: AttributedSpans(
-                attributions: [
-                  const SpanMarker(attribution: boldAttribution, offset: 0, markerType: SpanMarkerType.start),
-                  const SpanMarker(attribution: boldAttribution, offset: 6, markerType: SpanMarkerType.end),
-                ],
-              ),
-            ),
+            text: attributedTextFromMarkdown('**Ordered** 1'),
           ),
         ]);
 
         expect(serializeDocumentToMarkdown(doc), '  1. **Ordered** 1');
       });
 
+      test('tasks', () {
+        final doc = MutableDocument(
+          nodes: [
+            TaskNode(
+              id: '1',
+              text: AttributedText('Task 1'),
+              isComplete: true,
+            ),
+            TaskNode(
+              id: '2',
+              text: AttributedText('Task 2\nwith multiple lines'),
+              isComplete: false,
+            ),
+            TaskNode(
+              id: '3',
+              text: AttributedText('Task 3'),
+              isComplete: false,
+            ),
+            TaskNode(
+              id: '4',
+              text: AttributedText('Task 4'),
+              isComplete: true,
+            ),
+          ],
+        );
+
+        expect(
+          serializeDocumentToMarkdown(doc),
+          '''
+- [x] Task 1
+- [ ] Task 2
+with multiple lines
+- [ ] Task 3
+- [x] Task 4''',
+        );
+      });
+
       test('example doc', () {
         final doc = MutableDocument(nodes: [
           ImageNode(
-            id: DocumentEditor.createNodeId(),
+            id: Editor.createNodeId(),
             imageUrl: 'https://someimage.com/the/image.png',
           ),
           ParagraphNode(
-            id: DocumentEditor.createNodeId(),
-            text: AttributedText(text: 'Example Doc'),
+            id: Editor.createNodeId(),
+            text: AttributedText('Example Doc'),
             metadata: {'blockType': header1Attribution},
           ),
-          HorizontalRuleNode(id: DocumentEditor.createNodeId()),
           ParagraphNode(
-            id: DocumentEditor.createNodeId(),
-            text: AttributedText(text: 'Unordered list:'),
+            id: Editor.createNodeId(),
+            text: AttributedText('Example Doc With Left Alignment'),
+            metadata: {'blockType': header1Attribution, 'textAlign': 'left'},
+          ),
+          ParagraphNode(
+            id: Editor.createNodeId(),
+            text: AttributedText('Example Doc With Center Alignment'),
+            metadata: {'blockType': header1Attribution, 'textAlign': 'center'},
+          ),
+          ParagraphNode(
+            id: Editor.createNodeId(),
+            text: AttributedText('Example Doc With Right Alignment'),
+            metadata: {'blockType': header1Attribution, 'textAlign': 'right'},
+          ),
+          ParagraphNode(
+            id: Editor.createNodeId(),
+            text: AttributedText('Example Doc With Justify Alignment'),
+            metadata: {'blockType': header1Attribution, 'textAlign': 'justify'},
+          ),
+          HorizontalRuleNode(id: Editor.createNodeId()),
+          ParagraphNode(
+            id: Editor.createNodeId(),
+            text: AttributedText('Unordered list:'),
           ),
           ListItemNode(
-            id: DocumentEditor.createNodeId(),
+            id: Editor.createNodeId(),
             itemType: ListItemType.unordered,
-            text: AttributedText(text: 'Unordered 1'),
+            text: AttributedText('Unordered 1'),
           ),
           ListItemNode(
-            id: DocumentEditor.createNodeId(),
+            id: Editor.createNodeId(),
             itemType: ListItemType.unordered,
-            text: AttributedText(text: 'Unordered 2'),
+            text: AttributedText('Unordered 2'),
           ),
           ParagraphNode(
-            id: DocumentEditor.createNodeId(),
-            text: AttributedText(text: 'Ordered list:'),
+            id: Editor.createNodeId(),
+            text: AttributedText('Ordered list:'),
           ),
           ListItemNode(
-            id: DocumentEditor.createNodeId(),
+            id: Editor.createNodeId(),
             itemType: ListItemType.ordered,
-            text: AttributedText(text: 'Ordered 1'),
+            text: AttributedText('Ordered 1'),
           ),
           ListItemNode(
-            id: DocumentEditor.createNodeId(),
+            id: Editor.createNodeId(),
             itemType: ListItemType.ordered,
-            text: AttributedText(text: 'Ordered 2'),
+            text: AttributedText('Ordered 2'),
           ),
           ParagraphNode(
-            id: DocumentEditor.createNodeId(),
-            text: AttributedText(text: 'A blockquote:'),
+            id: Editor.createNodeId(),
+            text: AttributedText('A blockquote:'),
           ),
           ParagraphNode(
-            id: DocumentEditor.createNodeId(),
-            text: AttributedText(text: 'This is a blockquote.'),
+            id: Editor.createNodeId(),
+            text: AttributedText('This is a blockquote.'),
             metadata: {'blockType': blockquoteAttribution},
           ),
           ParagraphNode(
-            id: DocumentEditor.createNodeId(),
-            text: AttributedText(text: 'Some code:'),
+            id: Editor.createNodeId(),
+            text: AttributedText('Some code:'),
           ),
           ParagraphNode(
-            id: DocumentEditor.createNodeId(),
-            text: AttributedText(text: '{\n  // This is some code.\n}'),
+            id: Editor.createNodeId(),
+            text: AttributedText('{\n  // This is some code.\n}'),
             metadata: {'blockType': codeAttribution},
+          ),
+          TaskNode(
+            id: Editor.createNodeId(),
+            text: AttributedText('Task 1'),
+            isComplete: true,
+          ),
+          TaskNode(
+            id: Editor.createNodeId(),
+            text: AttributedText('Task 2\nwith multiple lines'),
+            isComplete: false,
+          ),
+          ParagraphNode(
+            id: Editor.createNodeId(),
+            text: AttributedText('A paragraph between tasks'),
+          ),
+          TaskNode(
+            id: Editor.createNodeId(),
+            text: AttributedText('Task 3'),
+            isComplete: false,
+          ),
+          TaskNode(
+            id: Editor.createNodeId(),
+            text: AttributedText('Task 4\nwith multiple lines'),
+            isComplete: true,
           ),
         ]);
 
@@ -707,7 +801,7 @@ Paragraph3""");
       test("doesn't add empty lines at the end of the document", () {
         final serialized = serializeDocumentToMarkdown(
           MutableDocument(nodes: [
-            ParagraphNode(id: '1', text: AttributedText(text: 'Paragraph1')),
+            ParagraphNode(id: '1', text: AttributedText('Paragraph1')),
           ]),
         );
 
@@ -736,6 +830,38 @@ Paragraph3""");
         expect((header6Doc.nodes.first as ParagraphNode).getMetadataValue('blockType'), header6Attribution);
       });
 
+      test('header with left alignment', () {
+        final headerLeftAlignment1 = deserializeMarkdownToDocument(':---\n# Header 1');
+        final header = headerLeftAlignment1.nodes.first as ParagraphNode;
+        expect(header.getMetadataValue('blockType'), header1Attribution);
+        expect(header.getMetadataValue('textAlign'), 'left');
+        expect(header.text.text, 'Header 1');
+      });
+
+      test('header with center alignment', () {
+        final headerLeftAlignment1 = deserializeMarkdownToDocument(':---:\n# Header 1');
+        final header = headerLeftAlignment1.nodes.first as ParagraphNode;
+        expect(header.getMetadataValue('blockType'), header1Attribution);
+        expect(header.getMetadataValue('textAlign'), 'center');
+        expect(header.text.text, 'Header 1');
+      });
+
+      test('header with right alignment', () {
+        final headerLeftAlignment1 = deserializeMarkdownToDocument('---:\n# Header 1');
+        final header = headerLeftAlignment1.nodes.first as ParagraphNode;
+        expect(header.getMetadataValue('blockType'), header1Attribution);
+        expect(header.getMetadataValue('textAlign'), 'right');
+        expect(header.text.text, 'Header 1');
+      });
+
+      test('header with justify alignment', () {
+        final headerLeftAlignment1 = deserializeMarkdownToDocument('-::-\n# Header 1');
+        final header = headerLeftAlignment1.nodes.first as ParagraphNode;
+        expect(header.getMetadataValue('blockType'), header1Attribution);
+        expect(header.getMetadataValue('textAlign'), 'justify');
+        expect(header.text.text, 'Header 1');
+      });
+
       test('blockquote', () {
         final blockquoteDoc = deserializeMarkdownToDocument('> This is a blockquote');
 
@@ -761,6 +887,71 @@ This is some code
         final image = codeBlockDoc.nodes.first as ImageNode;
         expect(image.imageUrl, 'https://images.com/some/image.png');
         expect(image.altText, 'Image alt text');
+        expect(image.expectedBitmapSize, isNull);
+      });
+
+      test('image with size', () {
+        final codeBlockDoc =
+            deserializeMarkdownToDocument('![Image alt text](https://images.com/some/image.png =500x200)');
+
+        final image = codeBlockDoc.nodes.first as ImageNode;
+        expect(image.imageUrl, 'https://images.com/some/image.png');
+        expect(image.altText, 'Image alt text');
+        expect(image.expectedBitmapSize?.width, 500.0);
+        expect(image.expectedBitmapSize?.height, 200.0);
+      });
+
+      test('image with size and title', () {
+        final codeBlockDoc = deserializeMarkdownToDocument(
+            '![Image alt text](https://images.com/some/image.png =500x200 "image title")');
+
+        final image = codeBlockDoc.nodes.first as ImageNode;
+        expect(image.imageUrl, 'https://images.com/some/image.png');
+        expect(image.altText, 'Image alt text');
+        expect(image.expectedBitmapSize?.width, 500.0);
+        expect(image.expectedBitmapSize?.height, 200.0);
+      });
+
+      test('image with width', () {
+        final codeBlockDoc =
+            deserializeMarkdownToDocument('![Image alt text](https://images.com/some/image.png =500x)');
+
+        final image = codeBlockDoc.nodes.first as ImageNode;
+        expect(image.imageUrl, 'https://images.com/some/image.png');
+        expect(image.altText, 'Image alt text');
+        expect(image.expectedBitmapSize?.width, 500.0);
+        expect(image.expectedBitmapSize?.height, isNull);
+      });
+
+      test('image with height', () {
+        final codeBlockDoc =
+            deserializeMarkdownToDocument('![Image alt text](https://images.com/some/image.png =x200)');
+
+        final image = codeBlockDoc.nodes.first as ImageNode;
+        expect(image.imageUrl, 'https://images.com/some/image.png');
+        expect(image.altText, 'Image alt text');
+        expect(image.expectedBitmapSize?.width, isNull);
+        expect(image.expectedBitmapSize?.height, 200.0);
+      });
+
+      test('image with size notation without width and height', () {
+        final codeBlockDoc = deserializeMarkdownToDocument('![Image alt text](https://images.com/some/image.png =x)');
+
+        final image = codeBlockDoc.nodes.first as ImageNode;
+        expect(image.imageUrl, 'https://images.com/some/image.png');
+        expect(image.altText, 'Image alt text');
+        expect(image.expectedBitmapSize?.width, isNull);
+        expect(image.expectedBitmapSize?.height, isNull);
+      });
+
+      test('image with incomplete size notation', () {
+        final codeBlockDoc = deserializeMarkdownToDocument('![Image alt text](https://images.com/some/image.png =)');
+
+        final image = codeBlockDoc.nodes.first as ImageNode;
+        expect(image.imageUrl, 'https://images.com/some/image.png');
+        expect(image.altText, 'Image alt text');
+        expect(image.expectedBitmapSize?.width, isNull);
+        expect(image.expectedBitmapSize?.height, isNull);
       });
 
       test('single unstyled paragraph', () {
@@ -792,6 +983,32 @@ This is some code
         expect(styledText.getAllAttributionsAt(13).containsAll([boldAttribution, italicsAttribution]), true);
         expect(styledText.getAllAttributionsAt(19).isEmpty, true);
         expect(styledText.getAllAttributionsAt(40).single, LinkAttribution(url: Uri.https('example.org', '')));
+      });
+
+      test('paragraph with special HTML symbols keeps the symbols by default', () {
+        const markdown = 'Preserves symbols like &, <, and >, rather than use HTML escape codes.';
+
+        final document = deserializeMarkdownToDocument(markdown);
+
+        expect(document.nodes.length, 1);
+        expect(document.nodes.first, isA<ParagraphNode>());
+
+        final paragraph = document.nodes.first as ParagraphNode;
+        final styledText = paragraph.text;
+        expect(styledText.text, 'Preserves symbols like &, <, and >, rather than use HTML escape codes.');
+      });
+
+      test('paragraph with special HTML symbols can escape them', () {
+        const markdown = 'Escapes HTML symbols like &, <, and >, when requested.';
+
+        final document = deserializeMarkdownToDocument(markdown, encodeHtml: true);
+
+        expect(document.nodes.length, 1);
+        expect(document.nodes.first, isA<ParagraphNode>());
+
+        final paragraph = document.nodes.first as ParagraphNode;
+        final styledText = paragraph.text;
+        expect(styledText.text, 'Escapes HTML symbols like &amp;, &lt;, and &gt;, when requested.');
       });
 
       test('link within multiple styles', () {
@@ -888,10 +1105,50 @@ This is some code
         }
 
         expect((document.nodes[0] as ListItemNode).indent, 0);
+        expect((document.nodes[0] as ListItemNode).text.text, 'list item 1');
+
         expect((document.nodes[1] as ListItemNode).indent, 0);
+        expect((document.nodes[1] as ListItemNode).text.text, 'list item 2');
+
         expect((document.nodes[2] as ListItemNode).indent, 1);
+        expect((document.nodes[2] as ListItemNode).text.text, 'list item 2.1');
+
         expect((document.nodes[3] as ListItemNode).indent, 1);
+        expect((document.nodes[3] as ListItemNode).text.text, 'list item 2.2');
+
         expect((document.nodes[4] as ListItemNode).indent, 0);
+        expect((document.nodes[4] as ListItemNode).text.text, 'list item 3');
+      });
+
+      test('empty unordered list item', () {
+        const markdown = '* ';
+        final document = deserializeMarkdownToDocument(markdown);
+
+        expect(document.nodes.length, 1);
+        expect(document.nodes.first, isA<ListItemNode>());
+        expect((document.nodes.first as ListItemNode).type, ListItemType.unordered);
+        expect((document.nodes.first as ListItemNode).text.text, isEmpty);
+      });
+
+      test('unordered list with empty lines between items', () {
+        const markdown = '''
+ * list item 1
+ 
+ * list item 2
+
+ * list item 3''';
+
+        final document = deserializeMarkdownToDocument(markdown);
+
+        expect(document.nodes.length, 3);
+        for (final node in document.nodes) {
+          expect(node, isA<ListItemNode>());
+          expect((node as ListItemNode).type, ListItemType.unordered);
+        }
+
+        expect((document.nodes[0] as ListItemNode).text.text, 'list item 1');
+        expect((document.nodes[1] as ListItemNode).text.text, 'list item 2');
+        expect((document.nodes[2] as ListItemNode).text.text, 'list item 3');
       });
 
       test('ordered list', () {
@@ -911,16 +1168,159 @@ This is some code
         }
 
         expect((document.nodes[0] as ListItemNode).indent, 0);
+        expect((document.nodes[0] as ListItemNode).text.text, 'list item 1');
+
         expect((document.nodes[1] as ListItemNode).indent, 0);
+        expect((document.nodes[1] as ListItemNode).text.text, 'list item 2');
+
         expect((document.nodes[2] as ListItemNode).indent, 1);
+        expect((document.nodes[2] as ListItemNode).text.text, 'list item 2.1');
+
         expect((document.nodes[3] as ListItemNode).indent, 1);
+        expect((document.nodes[3] as ListItemNode).text.text, 'list item 2.2');
+
         expect((document.nodes[4] as ListItemNode).indent, 0);
+        expect((document.nodes[4] as ListItemNode).text.text, 'list item 3');
+      });
+
+      test('empty ordered list item', () {
+        const markdown = '1. ';
+        final document = deserializeMarkdownToDocument(markdown);
+
+        expect(document.nodes.length, 1);
+        expect(document.nodes.first, isA<ListItemNode>());
+        expect((document.nodes.first as ListItemNode).type, ListItemType.ordered);
+        expect((document.nodes.first as ListItemNode).text.text, isEmpty);
+      });
+
+      test('ordered list with empty lines between items', () {
+        const markdown = '''
+ 1. list item 1
+ 
+ 2. list item 2
+
+ 3. list item 3''';
+
+        final document = deserializeMarkdownToDocument(markdown);
+
+        expect(document.nodes.length, 3);
+        for (final node in document.nodes) {
+          expect(node, isA<ListItemNode>());
+          expect((node as ListItemNode).type, ListItemType.ordered);
+        }
+
+        expect((document.nodes[0] as ListItemNode).text.text, 'list item 1');
+        expect((document.nodes[1] as ListItemNode).text.text, 'list item 2');
+        expect((document.nodes[2] as ListItemNode).text.text, 'list item 3');
+      });
+
+      test('mixing multiple levels of ordered and unordered lists', () {
+        const markdown = '''
+- Level 1
+   1. Level 2
+      1. Level 3
+         - Sublevel 1         
+         - Sublevel 2
+      2. Level 3 again
+   2. Level 2 returning
+2. Level 1 once more
+   - Bullet list
+     - Another bullet
+- Main bullet list
+   - Sub bullet list
+      - Subsub bullet list
+''';
+        final document = deserializeMarkdownToDocument(markdown);
+
+        expect(document.nodes.length, 13);
+
+        expect((document.nodes[0] as ListItemNode).indent, 0);
+        expect((document.nodes[0] as ListItemNode).type, ListItemType.unordered);
+        expect((document.nodes[0] as ListItemNode).text.text, 'Level 1');
+
+        expect((document.nodes[1] as ListItemNode).indent, 1);
+        expect((document.nodes[1] as ListItemNode).type, ListItemType.ordered);
+        expect((document.nodes[1] as ListItemNode).text.text, 'Level 2');
+
+        expect((document.nodes[2] as ListItemNode).indent, 2);
+        expect((document.nodes[2] as ListItemNode).type, ListItemType.ordered);
+        expect((document.nodes[2] as ListItemNode).text.text, 'Level 3');
+
+        expect((document.nodes[3] as ListItemNode).indent, 3);
+        expect((document.nodes[3] as ListItemNode).type, ListItemType.unordered);
+        expect((document.nodes[3] as ListItemNode).text.text, 'Sublevel 1');
+
+        expect((document.nodes[4] as ListItemNode).indent, 3);
+        expect((document.nodes[4] as ListItemNode).type, ListItemType.unordered);
+        expect((document.nodes[4] as ListItemNode).text.text, 'Sublevel 2');
+
+        expect((document.nodes[5] as ListItemNode).indent, 2);
+        expect((document.nodes[5] as ListItemNode).type, ListItemType.ordered);
+        expect((document.nodes[5] as ListItemNode).text.text, 'Level 3 again');
+
+        expect((document.nodes[6] as ListItemNode).indent, 1);
+        expect((document.nodes[6] as ListItemNode).type, ListItemType.ordered);
+        expect((document.nodes[6] as ListItemNode).text.text, 'Level 2 returning');
+
+        expect((document.nodes[7] as ListItemNode).indent, 0);
+        expect((document.nodes[7] as ListItemNode).type, ListItemType.ordered);
+        expect((document.nodes[7] as ListItemNode).text.text, 'Level 1 once more');
+
+        expect((document.nodes[8] as ListItemNode).indent, 1);
+        expect((document.nodes[8] as ListItemNode).type, ListItemType.unordered);
+        expect((document.nodes[8] as ListItemNode).text.text, 'Bullet list');
+
+        expect((document.nodes[9] as ListItemNode).indent, 2);
+        expect((document.nodes[9] as ListItemNode).type, ListItemType.unordered);
+        expect((document.nodes[9] as ListItemNode).text.text, 'Another bullet');
+
+        expect((document.nodes[10] as ListItemNode).indent, 0);
+        expect((document.nodes[10] as ListItemNode).type, ListItemType.unordered);
+        expect((document.nodes[10] as ListItemNode).text.text, 'Main bullet list');
+
+        expect((document.nodes[11] as ListItemNode).indent, 1);
+        expect((document.nodes[11] as ListItemNode).type, ListItemType.unordered);
+        expect((document.nodes[11] as ListItemNode).text.text, 'Sub bullet list');
+
+        expect((document.nodes[12] as ListItemNode).indent, 2);
+        expect((document.nodes[12] as ListItemNode).type, ListItemType.unordered);
+        expect((document.nodes[12] as ListItemNode).text.text, 'Subsub bullet list');
+      });
+
+      test('tasks', () {
+        const markdown = '''
+- [x] Task 1
+- [ ] Task 2
+- [ ] Task 3
+with multiple lines
+- [x] Task 4''';
+
+        final document = deserializeMarkdownToDocument(markdown);
+
+        expect(document.nodes.length, 4);
+
+        expect(document.nodes[0], isA<TaskNode>());
+        expect(document.nodes[1], isA<TaskNode>());
+        expect(document.nodes[2], isA<TaskNode>());
+        expect(document.nodes[3], isA<TaskNode>());
+
+        expect((document.nodes[0] as TaskNode).text.text, 'Task 1');
+        expect((document.nodes[0] as TaskNode).isComplete, isTrue);
+
+        expect((document.nodes[1] as TaskNode).text.text, 'Task 2');
+        expect((document.nodes[1] as TaskNode).isComplete, isFalse);
+
+        expect((document.nodes[2] as TaskNode).text.text, 'Task 3\nwith multiple lines');
+        expect((document.nodes[2] as TaskNode).isComplete, isFalse);
+
+        expect((document.nodes[3] as TaskNode).text.text, 'Task 4');
+        expect((document.nodes[3] as TaskNode).isComplete, isTrue);
       });
 
       test('example doc 1', () {
         final document = deserializeMarkdownToDocument(exampleMarkdownDoc1);
 
-        expect(document.nodes.length, 18);
+        expect(document.nodes.length, 26);
 
         expect(document.nodes[0], isA<ParagraphNode>());
         expect((document.nodes[0] as ParagraphNode).getMetadataValue('blockType'), header1Attribution);
@@ -945,7 +1345,31 @@ This is some code
 
         expect(document.nodes[16], isA<ImageNode>());
 
-        expect(document.nodes[17], isA<ParagraphNode>());
+        expect(document.nodes[17], isA<TaskNode>());
+
+        expect(document.nodes[18], isA<ParagraphNode>());
+
+        expect(document.nodes[19], isA<TaskNode>());
+
+        expect(document.nodes[20], isA<HorizontalRuleNode>());
+
+        expect(document.nodes[21], isA<ParagraphNode>());
+        expect((document.nodes[21] as ParagraphNode).getMetadataValue('blockType'), header1Attribution);
+        expect((document.nodes[21] as ParagraphNode).getMetadataValue('textAlign'), 'left');
+
+        expect(document.nodes[22], isA<ParagraphNode>());
+        expect((document.nodes[22] as ParagraphNode).getMetadataValue('blockType'), header1Attribution);
+        expect((document.nodes[22] as ParagraphNode).getMetadataValue('textAlign'), 'center');
+
+        expect(document.nodes[23], isA<ParagraphNode>());
+        expect((document.nodes[23] as ParagraphNode).getMetadataValue('blockType'), header1Attribution);
+        expect((document.nodes[23] as ParagraphNode).getMetadataValue('textAlign'), 'right');
+
+        expect(document.nodes[24], isA<ParagraphNode>());
+        expect((document.nodes[24] as ParagraphNode).getMetadataValue('blockType'), header1Attribution);
+        expect((document.nodes[24] as ParagraphNode).getMetadataValue('textAlign'), 'justify');
+
+        expect(document.nodes[25], isA<ParagraphNode>());
       });
 
       test('paragraph with strikethrough', () {
@@ -996,6 +1420,14 @@ This is some code
         expect(paragraph.text.text, 'Paragraph1');
       });
 
+      test('paragraph with justify alignment', () {
+        final doc = deserializeMarkdownToDocument('-::-\nParagraph1');
+
+        final paragraph = doc.nodes.first as ParagraphNode;
+        expect(paragraph.getMetadataValue('textAlign'), 'justify');
+        expect(paragraph.text.text, 'Paragraph1');
+      });
+
       test('treats alignment token as text at the end of the document', () {
         final doc = deserializeMarkdownToDocument('---:');
 
@@ -1024,7 +1456,7 @@ This is some code
       });
 
       test('multiple paragraphs', () {
-        final input = """Paragraph1
+        const input = """Paragraph1
 
 Paragraph2""";
         final doc = deserializeMarkdownToDocument(input);
@@ -1035,7 +1467,7 @@ Paragraph2""";
       });
 
       test('empty paragraph between paragraphs', () {
-        final input = """Paragraph1
+        const input = """Paragraph1
 
 
 
@@ -1049,7 +1481,7 @@ Paragraph3""";
       });
 
       test('multiple empty paragraph between paragraphs', () {
-        final input = """Paragraph1
+        const input = """Paragraph1
 
 
 
@@ -1102,8 +1534,7 @@ Paragraph4""";
       });
 
       test('paragraph beginning with multiple blank lines', () {
-        final doc =
-            deserializeMarkdownToDocument('  \n  \nFirst Paragraph.\n\nSecond Paragraph');
+        final doc = deserializeMarkdownToDocument('  \n  \nFirst Paragraph.\n\nSecond Paragraph');
 
         expect(doc.nodes.length, 2);
 
@@ -1113,7 +1544,7 @@ Paragraph4""";
         expect(doc.nodes.last, isA<ParagraphNode>());
         expect((doc.nodes.last as ParagraphNode).text.text, 'Second Paragraph');
       });
-    
+
       test('document ending with an empty paragraph', () {
         final doc = deserializeMarkdownToDocument("""
 First Paragraph.
@@ -1166,6 +1597,24 @@ It includes multiple paragraphs, ordered list items, unordered list items, image
 ---
 
 ![Image alt text](https://images.com/some/image.png)
+
+- [ ] Pending task
+with multiple lines
+
+Another paragraph
+
+- [x] Completed task
+
+---
+
+:---
+# Example 1 With Left Alignment
+:---:
+# Example 1 With Center Alignment
+---:
+# Example 1 With Right Alignment
+-::-
+# Example 1 With Justify Alignment
 
 The end!
 ''';

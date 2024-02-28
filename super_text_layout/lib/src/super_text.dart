@@ -27,6 +27,7 @@ class SuperText extends StatefulWidget {
     required this.richText,
     this.textAlign = TextAlign.left,
     this.textDirection = TextDirection.ltr,
+    this.textScaler,
     this.layerBeneathBuilder,
     this.layerAboveBuilder,
     this.debugTrackTextBuilds = false,
@@ -53,12 +54,17 @@ class SuperText extends StatefulWidget {
   /// is not rebuilt unnecessarily, due to text decorations.
   final bool debugTrackTextBuilds;
 
+  /// The text scaling policy.
+  ///
+  /// Defaults to `MediaQuery.textScalerOf`.
+  final TextScaler? textScaler;
+
   @override
   State<SuperText> createState() => SuperTextState();
 }
 
 @visibleForTesting
-class SuperTextState extends State<SuperText> with ProseTextBlock {
+class SuperTextState extends ProseTextState<SuperText> with ProseTextBlock {
   final _textLayoutKey = GlobalKey();
   @override
   ProseTextLayout get textLayout => RenderSuperTextLayout.textLayoutFrom(_textLayoutKey)!;
@@ -84,6 +90,7 @@ class SuperTextState extends State<SuperText> with ProseTextBlock {
       text: LayoutAwareRichText(
         text: widget.richText,
         textAlign: widget.textAlign,
+        textScaler: widget.textScaler ?? MediaQuery.textScalerOf(context),
         onMarkNeedsLayout: _invalidateParagraph,
       ),
       background: LayoutBuilder(
@@ -211,6 +218,41 @@ class RenderSuperTextLayout extends RenderBox
   }
 
   @override
+  double computeMinIntrinsicWidth(double height) {
+    final children = getChildrenAsList();
+    final text = children[1];
+    return text.getMinIntrinsicWidth(height);
+  }
+
+  @override
+  double computeMaxIntrinsicWidth(double height) {
+    final children = getChildrenAsList();
+    final text = children[1];
+    return text.getMaxIntrinsicWidth(height);
+  }
+
+  @override
+  double computeMinIntrinsicHeight(double width) {
+    final children = getChildrenAsList();
+    final text = children[1];
+    return text.getMinIntrinsicHeight(width);
+  }
+
+  @override
+  double computeMaxIntrinsicHeight(double width) {
+    final children = getChildrenAsList();
+    final text = children[1];
+    return text.getMaxIntrinsicHeight(width);
+  }
+
+  @override
+  Size computeDryLayout(BoxConstraints constraints) {
+    final children = getChildrenAsList();
+    final text = children[1];
+    return text.getDryLayout(constraints);
+  }
+
+  @override
   void performLayout() {
     layoutLog.info("Running SuperText layout. Incoming constraints: $constraints");
     final children = getChildrenAsList();
@@ -253,8 +295,14 @@ class LayoutAwareRichText extends RichText {
     Key? key,
     required InlineSpan text,
     TextAlign textAlign = TextAlign.left,
+    TextScaler textScaler = TextScaler.noScaling,
     required this.onMarkNeedsLayout,
-  }) : super(key: key, text: text, textAlign: textAlign);
+  }) : super(
+          key: key,
+          text: text,
+          textAlign: textAlign,
+          textScaler: textScaler,
+        );
 
   /// Callback invoked when the underlying [RenderParagraph] invalidates
   /// its layout.
@@ -269,7 +317,7 @@ class LayoutAwareRichText extends RichText {
       textDirection: textDirection ?? Directionality.of(context),
       softWrap: softWrap,
       overflow: overflow,
-      textScaleFactor: textScaleFactor,
+      textScaler: textScaler,
       maxLines: maxLines,
       strutStyle: strutStyle,
       textWidthBasis: textWidthBasis,
@@ -288,7 +336,7 @@ class LayoutAwareRichText extends RichText {
       ..textDirection = textDirection ?? Directionality.of(context)
       ..softWrap = softWrap
       ..overflow = overflow
-      ..textScaleFactor = textScaleFactor
+      ..textScaler = textScaler
       ..maxLines = maxLines
       ..strutStyle = strutStyle
       ..textWidthBasis = textWidthBasis
@@ -308,7 +356,7 @@ class RenderLayoutAwareParagraph extends RenderParagraph {
     required TextDirection textDirection,
     bool softWrap = true,
     TextOverflow overflow = TextOverflow.clip,
-    double textScaleFactor = 1.0,
+    TextScaler textScaler = TextScaler.noScaling,
     int? maxLines,
     Locale? locale,
     StrutStyle? strutStyle,
@@ -323,7 +371,7 @@ class RenderLayoutAwareParagraph extends RenderParagraph {
           textDirection: textDirection,
           softWrap: softWrap,
           overflow: overflow,
-          textScaleFactor: textScaleFactor,
+          textScaler: textScaler,
           maxLines: maxLines,
           locale: locale,
           strutStyle: strutStyle,
@@ -338,6 +386,21 @@ class RenderLayoutAwareParagraph extends RenderParagraph {
     if (_onMarkNeedsLayout != value) {
       _onMarkNeedsLayout = value;
     }
+  }
+
+  // We override the default textAlign setter because Flutter's RenderParagraph setter
+  // only calls markNeedsPaint, not markNeedsLayout. However, changing alignment does
+  // change the layout of the text.
+  //
+  // https://github.com/flutter/flutter/issues/140756
+  @override
+  set textAlign(TextAlign value) {
+    if (value == super.textAlign) {
+      return;
+    }
+
+    super.textAlign = value;
+    markNeedsLayout();
   }
 
   bool get needsLayout => _needsLayout;

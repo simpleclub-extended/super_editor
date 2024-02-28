@@ -1,298 +1,132 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:logging/logging.dart';
-import 'package:logging/logging.dart' as logging;
-import 'package:super_editor/super_editor.dart';
+import 'package:super_editor/src/core/document_selection.dart';
+import 'package:super_editor/src/infrastructure/links.dart';
 
-void groupWithLogging(String description, Level logLevel, Set<logging.Logger> loggers, VoidCallback body) {
-  initLoggers(logLevel, loggers);
+/// A [UrlLauncher] that logs each attempt to launch a URL, but doesn't
+/// attempt to actually launch the URLs.
+class TestUrlLauncher implements UrlLauncher {
+  final _urlLaunchLog = <Uri>[];
 
-  group(description, body);
+  List<Uri> get urlLaunchLog => _urlLaunchLog;
 
-  deactivateLoggers(loggers);
+  void clearUrlLaunchLog() => _urlLaunchLog.clear();
+
+  @override
+  Future<bool> launchUrl(Uri url) async {
+    _urlLaunchLog.add(url);
+    return true;
+  }
 }
 
-/// A widget test that runs a variant for every desktop platform, e.g.,
-/// Mac, Windows, Linux, and for all [DocumentInputSource]s.
-void testAllInputsOnDesktop(
-  String description,
-  InputModeTesterCallback test, {
-  bool skip = false,
-}) {
-  testWidgetsOnDesktop("$description (keyboard)", (WidgetTester tester) async {
-    await test(tester, inputSource: DocumentInputSource.keyboard);
-  }, skip: skip);
+/// Extension on [WidgetTester] to make it easier to perform drag gestures.
+extension DragExtensions on WidgetTester {
+  /// Simulates a user drag from [startLocation] to `startLocation + totalDragOffset`.
+  ///
+  /// Starts a gesture at [startLocation] and repeatedly drags the gesture
+  /// across [frameCount] frames, pumping a frame between each drag.
+  /// The gesture moves a distance each frame that's calculated as
+  /// `totalDragOffset / frameCount`.
+  ///
+  /// This method does not call `pumpAndSettle()`, so that the client can inspect
+  /// the app state immediately after the drag completes.
+  ///
+  /// The client must call [TestGesture.up] on the returned [TestGesture].
+  Future<TestGesture> dragByFrameCount({
+    required Offset startLocation,
+    required Offset totalDragOffset,
+    int frameCount = 10,
+  }) async {
+    final dragGesture = await startGesture(startLocation);
+    await dragContinuation(dragGesture, totalDragOffset, frameCount: frameCount);
 
-  testWidgetsOnDesktop("$description (IME)", (WidgetTester tester) async {
-    await test(tester, inputSource: DocumentInputSource.ime);
-  }, skip: skip);
+    return dragGesture;
+  }
+
+  /// Simulates a user drag with an existing [gesture].
+  ///
+  /// This is useful, for example, when simulating multiple drags without the user
+  /// lifting his finger.
+  Future<void> dragContinuation(
+    TestGesture dragGesture,
+    Offset delta, {
+    int frameCount = 10,
+  }) async {
+    final dragPerFrame = Offset(delta.dx / frameCount, delta.dy / frameCount);
+
+    for (int i = 0; i < frameCount; i += 1) {
+      await dragGesture.moveBy(dragPerFrame);
+      await pump();
+    }
+  }
 }
 
-/// A widget test that runs as a Mac, and for all [DocumentInputSource]s.
-void testAllInputsOnMac(
-  String description,
-  InputModeTesterCallback test, {
-  bool skip = false,
-}) {
-  testWidgetsOnMac("$description (keyboard)", (WidgetTester tester) async {
-    await test(tester, inputSource: DocumentInputSource.keyboard);
-  }, skip: skip);
-
-  testWidgetsOnMac("$description (IME)", (WidgetTester tester) async {
-    await test(tester, inputSource: DocumentInputSource.ime);
-  }, skip: skip);
-}
-
-/// A widget test that runs a variant for Windows and Linux, and for all [DocumentInputSource]s.
-void testAllInputsOnWindowsAndLinux(
-  String description,
-  InputModeTesterCallback test, {
-  bool skip = false,
-}) {
-  testWidgetsOnWindowsAndLinux("$description (keyboard)", (WidgetTester tester) async {
-    await test(tester, inputSource: DocumentInputSource.keyboard);
-  }, skip: skip);
-
-  testWidgetsOnWindowsAndLinux("$description (IME)", (WidgetTester tester) async {
-    await test(tester, inputSource: DocumentInputSource.ime);
-  }, skip: skip);
-}
-
-typedef InputModeTesterCallback = Future<void> Function(
-  WidgetTester widgetTester, {
-  required DocumentInputSource inputSource,
-});
-
-/// A widget test that runs a variant for every desktop platform, e.g.,
-/// Mac, Windows, Linux.
-void testWidgetsOnDesktop(
-  String description,
-  WidgetTesterCallback test, {
-  bool skip = false,
-}) {
-  testWidgetsOnMac("$description (on MAC)", test, skip: skip);
-  testWidgetsOnWindows("$description (on Windows)", test, skip: skip);
-  testWidgetsOnLinux("$description (on Linux)", test, skip: skip);
-}
-
-/// A widget test that runs a variant for every mobile platform, e.g.,
-/// Android and iOS
-void testWidgetsOnMobile(
-  String description,
-  WidgetTesterCallback test, {
-  bool skip = false,
-}) {
-  testWidgetsOnAndroid("$description (on Android)", test, skip: skip);
-  testWidgetsOnIos("$description (on iOS)", test, skip: skip);
-}
-
-/// A widget test that runs a variant for every platform, e.g.,
-/// Mac, Windows, Linux, Android and iOS.
-void testWidgetsOnAllPlatforms(
-  String description,
-  WidgetTesterCallback test, {
-  bool skip = false,
-}) {
-  testWidgetsOnMac("$description (on MAC)", test, skip: skip);
-  testWidgetsOnWindows("$description (on Windows)", test, skip: skip);
-  testWidgetsOnLinux("$description (on Linux)", test, skip: skip);
-  testWidgetsOnAndroid("$description (on Android)", test, skip: skip);
-  testWidgetsOnIos("$description (on iOS)", test, skip: skip);
-}
-
-/// A widget test that runs a variant for Windows and Linux.
+/// Compares two selections, ignoring selection affinities.
 ///
-/// This test method exists because many keyboard shortcuts are identical
-/// between Windows and Linux. It would be superfluous to replicate so
-/// many shortcut tests. Instead, this test method runs the given [test]
-/// with a simulated Windows and Linux platform.
-void testWidgetsOnWindowsAndLinux(
-  String description,
-  WidgetTesterCallback test, {
-  bool skip = false,
-}) {
-  testWidgetsOnWindows("$description (on Windows)", test, skip: skip);
-  testWidgetsOnLinux("$description (on Linux)", test, skip: skip);
-}
+/// Some node positions, like [TextNodePosition], have a concept of affinity (upstream/downstream),
+/// which is used when making particular selection decisions, but doesn't impact equivalency.
+Matcher selectionEquivalentTo(DocumentSelection expectedSelection) => EquivalentSelectionMatcher(expectedSelection);
 
-/// A widget test that configures itself for an arbitrary desktop environment.
+/// A [Matcher] that compares two selections, ignoring selection affinities.
 ///
-/// There's no guarantee which desktop environment is used. The purpose of this
-/// test method is to cause all relevant configurations to setup for desktop,
-/// without concern for any features that change between desktop platforms.
-void testWidgetsOnArbitraryDesktop(
-  String description,
-  WidgetTesterCallback test, {
-  bool skip = false,
-}) {
-  testWidgetsOnMac(description, test, skip: skip);
-}
+/// Some node positions, like [TextNodePosition], have a concept of affinity (upstream/downstream),
+/// which is used when making particular selection decisions, but doesn't impact equivalency.
+class EquivalentSelectionMatcher extends Matcher {
+  EquivalentSelectionMatcher(
+    this.expectedSelection,
+  );
 
-/// A widget test that configures itself as a Mac platform before executing the
-/// given [test], and nullifies the Mac configuration when the test is done.
-void testWidgetsOnMac(
-  String description,
-  WidgetTesterCallback test, {
-  bool skip = false,
-}) {
-  testWidgets(description, (tester) async {
-    debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+  final DocumentSelection expectedSelection;
 
-    tester.binding.window
-      ..devicePixelRatioTestValue = 1.0
-      ..platformDispatcher.textScaleFactorTestValue = 1.0;
+  @override
+  Description describe(Description description) {
+    return description.add("given selection is equivalent to expected selection");
+  }
 
-    try {
-      await test(tester);
-    } finally {
-      debugDefaultTargetPlatformOverride = null;
+  @override
+  bool matches(covariant Object target, Map<dynamic, dynamic> matchState) {
+    return _calculateMismatchReason(target, matchState) == null;
+  }
+
+  @override
+  Description describeMismatch(
+    covariant Object target,
+    Description mismatchDescription,
+    Map matchState,
+    bool verbose,
+  ) {
+    final mismatchReason = _calculateMismatchReason(target, matchState);
+    if (mismatchReason != null) {
+      mismatchDescription.add(mismatchReason);
     }
-  }, skip: skip);
-}
+    return mismatchDescription;
+  }
 
-/// A Dart test that configures the [Platform] to think its a [MacPlatform],
-/// then runs the [realTest], and then sets the [Platform] back to null.
-///
-/// [testOnMac] should only be used for unit tests and component tests that
-/// care about the platform. In general, platform-specific behavior comes from
-/// the widget tree, which should be tested with [testWidgetsOnMac]. In the
-/// rare cases where a specific object, handler, or subsystem needs to be tested
-/// in isolation, and it cares about the platform, you can use this test method.
-void testOnMac(
-  String description,
-  VoidCallback realTest, {
-  bool skip = false,
-}) {
-  test(description, () {
-    debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
-    try {
-      realTest();
-    } finally {
-      debugDefaultTargetPlatformOverride = null;
+  String? _calculateMismatchReason(
+    Object target,
+    Map<dynamic, dynamic> matchState,
+  ) {
+    if (target is! DocumentSelection) {
+      return "the given target isn't a DocumentSelection";
     }
-  }, skip: skip);
-}
 
-/// A widget test that configures itself as a Windows platform before executing the
-/// given [test], and nullifies the Windows configuration when the test is done.
-void testWidgetsOnWindows(
-  String description,
-  WidgetTesterCallback test, {
-  bool skip = false,
-}) {
-  testWidgets(description, (tester) async {
-    debugDefaultTargetPlatformOverride = TargetPlatform.windows;
-
-    tester.binding.window
-      ..devicePixelRatioTestValue = 1.0
-      ..platformDispatcher.textScaleFactorTestValue = 1.0;
-
-    try {
-      await test(tester);
-    } finally {
-      debugDefaultTargetPlatformOverride = null;
+    if (target.base.nodeId != expectedSelection.base.nodeId) {
+      return "The selection doesn't start at the expected node.\nExpected: $expectedSelection\nActual: $target";
     }
-  }, skip: skip);
-}
 
-/// A Dart test that configures the [Platform] to think its a [WindowsPlatform],
-/// then runs the [realTest], and then sets the [Platform] back to null.
-///
-/// [testOnWindows] should only be used for unit tests and component tests that
-/// care about the platform. In general, platform-specific behavior comes from
-/// the widget tree, which should be tested with [testWidgetsOnWindows]. In the
-/// rare cases where a specific object, handler, or subsystem needs to be tested
-/// in isolation, and it cares about the platform, you can use this test method.
-void testOnWindows(
-  String description,
-  VoidCallback realTest, {
-  bool skip = false,
-}) {
-  test(description, () {
-    debugDefaultTargetPlatformOverride = TargetPlatform.windows;
-    try {
-      realTest();
-    } finally {
-      debugDefaultTargetPlatformOverride = null;
+    if (target.extent.nodeId != expectedSelection.extent.nodeId) {
+      return "The selection doesn't end at the expected node.\nExpected: $expectedSelection\nActual: $target";
     }
-  }, skip: skip);
-}
 
-/// A widget test that configures itself as a Linux platform before executing the
-/// given [test], and nullifies the Linux configuration when the test is done.
-void testWidgetsOnLinux(
-  String description,
-  WidgetTesterCallback test, {
-  bool skip = false,
-}) {
-  testWidgets(description, (tester) async {
-    debugDefaultTargetPlatformOverride = TargetPlatform.linux;
-
-    tester.binding.window
-      ..devicePixelRatioTestValue = 1.0
-      ..platformDispatcher.textScaleFactorTestValue = 1.0;
-
-    try {
-      await test(tester);
-    } finally {
-      debugDefaultTargetPlatformOverride = null;
+    if (!target.base.nodePosition.isEquivalentTo(expectedSelection.base.nodePosition)) {
+      // The base node positions aren't the same.
+      return 'The selection starts at the correct node, but at a wrong position.\nExpected: $expectedSelection\nActual: $target';
     }
-  }, skip: skip);
-}
 
-/// A Dart test that configures the [Platform] to think its a [LinuxPlatform],
-/// then runs the [realTest], and then sets the [Platform] back to null.
-///
-/// [testOnLinux] should only be used for unit tests and component tests that
-/// care about the platform. In general, platform-specific behavior comes from
-/// the widget tree, which should be tested with [testWidgetsOnLinux]. In the
-/// rare cases where a specific object, handler, or subsystem needs to be tested
-/// in isolation, and it cares about the platform, you can use this test method.
-void testOnLinux(
-  String description,
-  VoidCallback realTest, {
-  bool skip = false,
-}) {
-  test(description, () {
-    debugDefaultTargetPlatformOverride = TargetPlatform.linux;
-    try {
-      realTest();
-    } finally {
-      debugDefaultTargetPlatformOverride = null;
+    if (!target.extent.nodePosition.isEquivalentTo(expectedSelection.extent.nodePosition)) {
+      // The extent node positions aren't the same.
+      return 'The selection ends at the correct node, but at a wrong position.\nExpected: $expectedSelection\nActual: $target';
     }
-  }, skip: skip);
-}
 
-/// A widget test that configures itself as a Android platform before executing the
-/// given [test], and nullifies the Android configuration when the test is done.
-void testWidgetsOnAndroid(
-  String description,
-  WidgetTesterCallback test, {
-  bool skip = false,
-}) {
-  testWidgets(description, (tester) async {
-    debugDefaultTargetPlatformOverride = TargetPlatform.android;
-    try {
-      await test(tester);
-    } finally {
-      debugDefaultTargetPlatformOverride = null;
-    }
-  }, skip: skip);
-}
-
-/// A widget test that configures itself as a iOS platform before executing the
-/// given [test], and nullifies the iOS configuration when the test is done.
-void testWidgetsOnIos(
-  String description,
-  WidgetTesterCallback test, {
-  bool skip = false,
-}) {
-  testWidgets(description, (tester) async {
-    debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
-    try {
-      await test(tester);
-    } finally {
-      debugDefaultTargetPlatformOverride = null;
-    }
-  }, skip: skip);
+    return null;
+  }
 }

@@ -1,6 +1,5 @@
 import 'package:collection/collection.dart';
 import 'package:flutter/widgets.dart';
-import 'package:super_editor/src/default_editor/text.dart';
 
 /// A read-only document with styled text and multimedia elements.
 ///
@@ -18,7 +17,7 @@ import 'package:super_editor/src/default_editor/text.dart';
 /// content.
 ///
 /// To edit the content of a document, see [DocumentEditor].
-abstract class Document with ChangeNotifier {
+abstract class Document {
   /// Returns all of the content within the document as a list
   /// of [DocumentNode]s.
   List<DocumentNode> get nodes;
@@ -56,14 +55,6 @@ abstract class Document with ChangeNotifier {
   /// no such node exists in this [Document].
   DocumentNode? getNode(DocumentPosition position);
 
-  /// Returns a [DocumentRange] that ranges from [position1] to
-  /// [position2], including [position1] and [position2].
-  // TODO: this method is misleading (#48) because if `position1` and
-  //       `position2` are in the same node, they may be returned
-  //       in the wrong order because the document doesn't know
-  //       how to interpret positions within a node.
-  DocumentRange getRangeBetween(DocumentPosition position1, DocumentPosition position2);
-
   /// Returns all [DocumentNode]s from [position1] to [position2], including
   /// the nodes at [position1] and [position2].
   List<DocumentNode> getNodesInside(DocumentPosition position1, DocumentPosition position2);
@@ -74,49 +65,141 @@ abstract class Document with ChangeNotifier {
   ///
   /// To compare [Document] equality, use the standard [==] operator.
   bool hasEquivalentContent(Document other);
+
+  void addListener(DocumentChangeListener listener);
+
+  void removeListener(DocumentChangeListener listener);
 }
 
-/// A span within a [Document] that begins at [start] and
-/// ends at [end].
+/// Listener that's notified when a document changes.
 ///
-/// The [start] position must come before the [end] position in
-/// the document.
-class DocumentRange {
-  /// Creates a document range from its start and end positions.
-  ///
-  /// The [start] position must come before the [end] position in
-  /// the document.
-  DocumentRange({
-    required this.start,
-    required this.end,
-  });
+/// The [changeLog] includes an ordered list of all changes that were applied
+/// to the [Document] since the last time this listener was notified.
+typedef DocumentChangeListener = void Function(DocumentChangeLog changeLog);
 
-  /// The start position of the range represented by its position within the
-  /// document.
-  ///
-  /// The [start] position comes before the [end] position, or is equivalent to
-  /// the [end] position.
-  final DocumentPosition start;
+/// One or more document changes that occurred within a single edit transaction.
+///
+/// A [DocumentChangeLog] can be used to rebuild only the parts of a document that changed.
+class DocumentChangeLog {
+  DocumentChangeLog(this.changes);
 
-  /// The end position of the range represented by its position within the
-  /// document.
-  ///
-  /// The [end] position comes after the [start] position, or is equivalent to
-  /// the [start] position.
-  final DocumentPosition end;
+  final List<DocumentChange> changes;
+
+  /// Returns `true` if the [DocumentNode] with the given [nodeId] was altered in any way
+  /// by the events in this change log.
+  bool wasNodeChanged(String nodeId) {
+    for (final event in changes) {
+      if (event is NodeDocumentChange && event.nodeId == nodeId) {
+        return true;
+      }
+    }
+    return false;
+  }
+}
+
+/// Marker interface for all document changes.
+abstract class DocumentChange {
+  // Marker interface
+}
+
+/// A [DocumentChange] that impacts a single, specified [DocumentNode] with [nodeId].
+abstract class NodeDocumentChange implements DocumentChange {
+  String get nodeId;
+}
+
+/// A new [DocumentNode] was inserted in the [Document].
+class NodeInsertedEvent implements NodeDocumentChange {
+  const NodeInsertedEvent(this.nodeId, this.insertionIndex);
+
+  @override
+  final String nodeId;
+
+  final int insertionIndex;
+
+  @override
+  String toString() => "NodeInsertedEvent ($nodeId)";
 
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is DocumentRange && runtimeType == other.runtimeType && start == other.start && end == other.end;
+      other is NodeInsertedEvent &&
+          runtimeType == other.runtimeType &&
+          nodeId == other.nodeId &&
+          insertionIndex == other.insertionIndex;
 
   @override
-  int get hashCode => start.hashCode ^ end.hashCode;
+  int get hashCode => nodeId.hashCode ^ insertionIndex.hashCode;
+}
+
+/// A [DocumentNode] was moved to a new index.
+class NodeMovedEvent implements NodeDocumentChange {
+  const NodeMovedEvent({
+    required this.nodeId,
+    required this.from,
+    required this.to,
+  });
 
   @override
-  String toString() {
-    return '[DocumentRange] - from: ($start), to: ($end)';
-  }
+  final String nodeId;
+  final int from;
+  final int to;
+
+  @override
+  String toString() => "NodeMovedEvent ($nodeId: $from -> $to)";
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is NodeMovedEvent &&
+          runtimeType == other.runtimeType &&
+          nodeId == other.nodeId &&
+          from == other.from &&
+          to == other.to;
+
+  @override
+  int get hashCode => nodeId.hashCode ^ from.hashCode ^ to.hashCode;
+}
+
+/// A [DocumentNode] was removed from the [Document].
+class NodeRemovedEvent implements NodeDocumentChange {
+  const NodeRemovedEvent(this.nodeId, this.removedNode);
+
+  @override
+  final String nodeId;
+
+  final DocumentNode removedNode;
+
+  @override
+  String toString() => "NodeRemovedEvent ($nodeId)";
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) || other is NodeRemovedEvent && runtimeType == other.runtimeType && nodeId == other.nodeId;
+
+  @override
+  int get hashCode => nodeId.hashCode;
+}
+
+/// The content of a [DocumentNode] changed.
+///
+/// A node change might signify a content change, such as text changing in a paragraph, or
+/// it might signify a node changing its type of content, such as converting a paragraph
+/// to an image.
+class NodeChangeEvent implements NodeDocumentChange {
+  const NodeChangeEvent(this.nodeId);
+
+  @override
+  final String nodeId;
+
+  @override
+  String toString() => "NodeChangeEvent ($nodeId)";
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) || other is NodeChangeEvent && runtimeType == other.runtimeType && nodeId == other.nodeId;
+
+  @override
+  int get hashCode => nodeId.hashCode;
 }
 
 /// A logical position within a [Document].
@@ -156,6 +239,18 @@ class DocumentPosition {
   ///
   /// For example: a paragraph node might use a [TextNodePosition].
   final NodePosition nodePosition;
+
+  /// Whether this position within the document is equivalent to the given
+  /// [other] [DocumentPosition].
+  ///
+  /// Equivalency is determined by the [NodePosition]. For example, given two
+  /// [TextNodePosition]s, if both of them point to the same character, but one
+  /// has an upstream affinity and the other a downstream affinity, the two
+  /// [TextNodePosition]s are considered "non-equal", but they're considered
+  /// "equivalent" because both [TextNodePosition]s point to the same location
+  /// within the document.
+  bool isEquivalentTo(DocumentPosition other) =>
+      nodeId == other.nodeId && nodePosition.isEquivalentTo(other.nodePosition);
 
   @override
   bool operator ==(Object other) =>
@@ -317,11 +412,17 @@ abstract class NodeSelection {
   // marker interface
 }
 
-/// Marker interface for all node positions.
-///
-/// A node position is a logical position within a [DocumentNode],
-/// e.g., a [TextNodePosition] within a [ParagraphNode], or a [BinaryNodePosition]
-/// within an [ImageNode].
+/// A logical position within a [DocumentNode], e.g., a [TextNodePosition]
+/// within a [ParagraphNode], or a [BinaryNodePosition] within an [ImageNode].
 abstract class NodePosition {
-  // marker interface
+  /// Whether this [NodePosition] is equivalent to the [other] [NodePosition].
+  ///
+  /// Typically, [isEquivalentTo] should return the same value as [==], however,
+  /// some [NodePosition]s have properties that don't impact equivalency. For
+  /// example, a [TextNodePosition] has a concept of affinity (upstream/downstream),
+  /// which are used when making particular selection decisions, but affinity
+  /// doesn't impact equivalency. Two [TextNodePosition]s, which refer to the same
+  /// text offset, but have different affinities, returns `true` from [isEquivalentTo],
+  /// even though [==] returns `false`.
+  bool isEquivalentTo(NodePosition other);
 }

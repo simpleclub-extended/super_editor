@@ -1,28 +1,32 @@
+import 'package:example/demos/supertextfield/demo_text_styles.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:super_editor/super_editor.dart';
-
-const brandAttribution = NamedAttribution('brand');
-const flutterAttribution = NamedAttribution('flutter');
+import 'package:super_text_layout/super_text_layout.dart';
 
 class InteractiveTextFieldDemo extends StatefulWidget {
   @override
-  _InteractiveTextFieldDemoState createState() => _InteractiveTextFieldDemoState();
+  State<InteractiveTextFieldDemo> createState() => _InteractiveTextFieldDemoState();
 }
 
 class _InteractiveTextFieldDemoState extends State<InteractiveTextFieldDemo> {
+  static const _tapRegionGroupId = "desktop";
+
   final _textFieldController = AttributedTextEditingController(
     text: AttributedText(
-        text: 'Super Editor is an open source text editor for Flutter projects.',
-        spans: AttributedSpans(attributions: [
+      'Super Editor is an open source text editor for Flutter projects.',
+      AttributedSpans(
+        attributions: [
           const SpanMarker(attribution: brandAttribution, offset: 0, markerType: SpanMarkerType.start),
           const SpanMarker(attribution: brandAttribution, offset: 11, markerType: SpanMarkerType.end),
           const SpanMarker(attribution: flutterAttribution, offset: 47, markerType: SpanMarkerType.start),
           const SpanMarker(attribution: flutterAttribution, offset: 53, markerType: SpanMarkerType.end),
-        ])),
+        ],
+      ),
+    ),
   );
 
-  OverlayEntry? _popupEntry;
+  final _popupOverlayController = OverlayPortalController();
   Offset _popupOffset = Offset.zero;
 
   FocusNode? _focusNode;
@@ -51,91 +55,36 @@ class _InteractiveTextFieldDemoState extends State<InteractiveTextFieldDemo> {
     final textFieldBox = textFieldContext.findRenderObject() as RenderBox;
     _popupOffset = textFieldBox.localToGlobal(localOffset, ancestor: overlayBox);
 
-    if (_popupEntry == null) {
-      _popupEntry = OverlayEntry(builder: (context) {
-        return GestureDetector(
-          behavior: HitTestBehavior.translucent,
-          onTapDown: (_) {
-            _closePopup();
-          },
-          child: Container(
-            width: double.infinity,
-            height: double.infinity,
-            color: Colors.transparent,
-            child: Stack(
-              children: [
-                Positioned(
-                  left: _popupOffset.dx,
-                  top: _popupOffset.dy,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(4),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.3),
-                          blurRadius: 5,
-                          offset: const Offset(3, 3),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      children: [
-                        TextButton(
-                          onPressed: () {
-                            Clipboard.setData(ClipboardData(
-                              text: textController.selection.textInside(textController.text.text),
-                            ));
-                            _closePopup();
-                          },
-                          child: const Text('Copy'),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      });
-
-      overlay.insert(_popupEntry!);
-    } else {
-      _popupEntry!.markNeedsBuild();
-    }
+    _popupOverlayController.show();
   }
 
   void _closePopup() {
-    if (_popupEntry == null) {
-      return;
-    }
-
-    _popupEntry!.remove();
-    _popupEntry = null;
+    _popupOverlayController.hide();
   }
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: () {
-        // Remove focus from text field when the user taps anywhere else.
-        _focusNode!.unfocus();
-      },
-      child: Center(
-        child: SizedBox(
-          width: 400,
-          child: GestureDetector(
-            onTap: () {
-              // no-op. Prevents unfocus from happening when text field is tapped.
-            },
+    return OverlayPortal(
+      controller: _popupOverlayController,
+      overlayChildBuilder: _buildPopover,
+      child: TapRegion(
+        groupId: _tapRegionGroupId,
+        onTapOutside: (_) {
+          // Remove focus from text field when the user taps anywhere else.
+          _focusNode!.unfocus();
+        },
+        child: Center(
+          child: SizedBox(
+            width: 400,
             child: SizedBox(
               width: double.infinity,
               child: SuperDesktopTextField(
-                textController: _textFieldController,
                 focusNode: _focusNode,
-                textStyleBuilder: _textStyleBuilder,
+                tapRegionGroupId: _tapRegionGroupId,
+                textController: _textFieldController,
+                inputSource: TextInputSource.ime,
+                textStyleBuilder: demoTextStyleBuilder,
+                blinkTimingMode: BlinkTimingMode.timer,
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decorationBuilder: (context, child) {
                   return Container(
@@ -169,24 +118,51 @@ class _InteractiveTextFieldDemoState extends State<InteractiveTextFieldDemo> {
     );
   }
 
-  TextStyle _textStyleBuilder(Set<Attribution> attributions) {
-    TextStyle textStyle = const TextStyle(
-      color: Colors.black,
-      fontSize: 14,
+  Widget _buildPopover(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onTapDown: (_) {
+        _closePopup();
+      },
+      child: Container(
+        width: double.infinity,
+        height: double.infinity,
+        color: Colors.transparent,
+        child: Stack(
+          children: [
+            Positioned(
+              left: _popupOffset.dx,
+              top: _popupOffset.dy,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(4),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.3),
+                      blurRadius: 5,
+                      offset: const Offset(3, 3),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  children: [
+                    TextButton(
+                      onPressed: () {
+                        Clipboard.setData(ClipboardData(
+                          text: _textFieldController.selection.textInside(_textFieldController.text.text),
+                        ));
+                        _closePopup();
+                      },
+                      child: const Text('Copy'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
-
-    if (attributions.contains(brandAttribution)) {
-      textStyle = textStyle.copyWith(
-        color: Colors.red,
-        fontWeight: FontWeight.bold,
-      );
-    }
-    if (attributions.contains(flutterAttribution)) {
-      textStyle = textStyle.copyWith(
-        color: Colors.blue,
-      );
-    }
-
-    return textStyle;
   }
 }

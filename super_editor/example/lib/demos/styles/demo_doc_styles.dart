@@ -5,18 +5,20 @@ class DocumentStylesDemo extends StatefulWidget {
   const DocumentStylesDemo({Key? key}) : super(key: key);
 
   @override
-  _DocumentStylesDemoState createState() => _DocumentStylesDemoState();
+  State<DocumentStylesDemo> createState() => _DocumentStylesDemoState();
 }
 
 class _DocumentStylesDemoState extends State<DocumentStylesDemo> {
-  late Document _doc;
-  late DocumentEditor _docEditor;
+  late MutableDocument _doc;
+  late MutableDocumentComposer _composer;
+  late Editor _docEditor;
 
   @override
   void initState() {
     super.initState();
     _doc = _createSampleDocument();
-    _docEditor = DocumentEditor(document: _doc as MutableDocument);
+    _composer = MutableDocumentComposer();
+    _docEditor = createDefaultDocumentEditor(document: _doc, composer: _composer);
   }
 
   Stylesheet _createStyles() {
@@ -29,9 +31,9 @@ class _DocumentStylesDemoState extends State<DocumentStylesDemo> {
           BlockSelector.all,
           (doc, docNode) {
             return {
-              "maxWidth": 640.0,
-              "padding": const CascadingPadding.symmetric(horizontal: 24),
-              "textStyle": const TextStyle(
+              Styles.maxWidth: 640.0,
+              Styles.padding: const CascadingPadding.symmetric(horizontal: 24),
+              Styles.textStyle: const TextStyle(
                 color: Colors.black,
                 fontSize: 18,
                 height: 1.4,
@@ -43,8 +45,8 @@ class _DocumentStylesDemoState extends State<DocumentStylesDemo> {
           const BlockSelector("header1"),
           (doc, docNode) {
             return {
-              "padding": const CascadingPadding.only(top: 40),
-              "textStyle": const TextStyle(
+              Styles.padding: const CascadingPadding.only(top: 40),
+              Styles.textStyle: const TextStyle(
                 color: Color(0xFF333333),
                 fontSize: 38,
                 fontWeight: FontWeight.bold,
@@ -56,8 +58,8 @@ class _DocumentStylesDemoState extends State<DocumentStylesDemo> {
           const BlockSelector("header2"),
           (doc, docNode) {
             return {
-              "padding": const CascadingPadding.only(top: 32),
-              "textStyle": const TextStyle(
+              Styles.padding: const CascadingPadding.only(top: 32),
+              Styles.textStyle: const TextStyle(
                 color: Color(0xFF333333),
                 fontSize: 26,
                 fontWeight: FontWeight.bold,
@@ -69,8 +71,8 @@ class _DocumentStylesDemoState extends State<DocumentStylesDemo> {
           const BlockSelector("header3"),
           (doc, docNode) {
             return {
-              "padding": const CascadingPadding.only(top: 28),
-              "textStyle": const TextStyle(
+              Styles.padding: const CascadingPadding.only(top: 28),
+              Styles.textStyle: const TextStyle(
                 color: Color(0xFF333333),
                 fontSize: 22,
                 fontWeight: FontWeight.bold,
@@ -82,7 +84,7 @@ class _DocumentStylesDemoState extends State<DocumentStylesDemo> {
           const BlockSelector("paragraph"),
           (doc, docNode) {
             return {
-              "padding": const CascadingPadding.only(top: 24),
+              Styles.padding: const CascadingPadding.only(top: 24),
             };
           },
         ),
@@ -90,7 +92,7 @@ class _DocumentStylesDemoState extends State<DocumentStylesDemo> {
           const BlockSelector("paragraph").after("header1"),
           (doc, docNode) {
             return {
-              "padding": const CascadingPadding.only(top: 0),
+              Styles.padding: const CascadingPadding.only(top: 0),
             };
           },
         ),
@@ -98,7 +100,7 @@ class _DocumentStylesDemoState extends State<DocumentStylesDemo> {
           const BlockSelector("paragraph").after("header2"),
           (doc, docNode) {
             return {
-              "padding": const CascadingPadding.only(top: 0),
+              Styles.padding: const CascadingPadding.only(top: 0),
             };
           },
         ),
@@ -106,7 +108,7 @@ class _DocumentStylesDemoState extends State<DocumentStylesDemo> {
           const BlockSelector("paragraph").after("header3"),
           (doc, docNode) {
             return {
-              "padding": const CascadingPadding.only(top: 0),
+              Styles.padding: const CascadingPadding.only(top: 0),
             };
           },
         ),
@@ -114,7 +116,7 @@ class _DocumentStylesDemoState extends State<DocumentStylesDemo> {
           const BlockSelector("listItem"),
           (doc, docNode) {
             return {
-              "padding": const CascadingPadding.only(top: 24),
+              Styles.padding: const CascadingPadding.only(top: 24),
             };
           },
         ),
@@ -122,7 +124,7 @@ class _DocumentStylesDemoState extends State<DocumentStylesDemo> {
           BlockSelector.all.last(),
           (doc, docNode) {
             return {
-              "padding": const CascadingPadding.only(bottom: 96),
+              Styles.padding: const CascadingPadding.only(bottom: 96),
             };
           },
         ),
@@ -135,6 +137,8 @@ class _DocumentStylesDemoState extends State<DocumentStylesDemo> {
   Widget build(BuildContext context) {
     return SuperEditor(
       editor: _docEditor,
+      document: _doc,
+      composer: _composer,
       stylesheet: _createStyles(),
     );
   }
@@ -144,42 +148,42 @@ MutableDocument _createSampleDocument() {
   return MutableDocument(
     nodes: [
       ParagraphNode(
-        id: DocumentEditor.createNodeId(),
-        text: AttributedText(text: 'Header 1'),
+        id: Editor.createNodeId(),
+        text: AttributedText('Header 1'),
         metadata: {'blockType': header1Attribution},
       ),
       ParagraphNode(
-        id: DocumentEditor.createNodeId(),
-        text: AttributedText(text: 'Header 2'),
+        id: Editor.createNodeId(),
+        text: AttributedText('Header 2'),
         metadata: {'blockType': header2Attribution},
       ),
       ParagraphNode(
-        id: DocumentEditor.createNodeId(),
-        text: AttributedText(text: 'Header 3'),
+        id: Editor.createNodeId(),
+        text: AttributedText('Header 3'),
         metadata: {'blockType': header3Attribution},
       ),
       ParagraphNode(
-        id: DocumentEditor.createNodeId(),
-        text: AttributedText(text: 'Header 4'),
+        id: Editor.createNodeId(),
+        text: AttributedText('Header 4'),
         metadata: {'blockType': header4Attribution},
       ),
       ParagraphNode(
-        id: DocumentEditor.createNodeId(),
-        text: AttributedText(text: 'Header 5'),
+        id: Editor.createNodeId(),
+        text: AttributedText('Header 5'),
         metadata: {'blockType': header5Attribution},
       ),
       ParagraphNode(
-        id: DocumentEditor.createNodeId(),
-        text: AttributedText(text: 'Header 6'),
+        id: Editor.createNodeId(),
+        text: AttributedText('Header 6'),
         metadata: {'blockType': header6Attribution},
       ),
       ParagraphNode(
-        id: DocumentEditor.createNodeId(),
-        text: AttributedText(text: 'This is a paragraph of regular text'),
+        id: Editor.createNodeId(),
+        text: AttributedText('This is a paragraph of regular text'),
       ),
       ParagraphNode(
-        id: DocumentEditor.createNodeId(),
-        text: AttributedText(text: 'This is a blockquote'),
+        id: Editor.createNodeId(),
+        text: AttributedText('This is a blockquote'),
         metadata: {'blockType': blockquoteAttribution},
       ),
     ],
