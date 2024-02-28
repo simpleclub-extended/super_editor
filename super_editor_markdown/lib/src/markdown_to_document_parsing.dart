@@ -37,10 +37,10 @@ MutableDocument deserializeMarkdownToDocument(
     // * two whitespaces at the end of a line to insert a line break
     // * two whitespaces at the start of a bullet to indent the bullet
     if (line.trim().length == 0) {
-      return line.trim();
+      return md.Line(line.trim());
     }
 
-    return line;
+    return md.Line(line);
   }).toList();
 
   final markdownDoc = md.Document(
@@ -562,15 +562,19 @@ abstract class ElementToNodeConverter {
 /// Markdown with surrounding `¬` tags, e.g., "this is ¬underline¬ text".
 ///
 /// This [TagSyntax] produces `Element`s with a `u` tag.
-class UnderlineSyntax extends md.TagSyntax {
+class UnderlineSyntax extends md.DelimiterSyntax {
   UnderlineSyntax()
       : super('¬', requiresDelimiterRun: true, allowIntraWord: true);
 
   @override
-  md.Node close(
-      md.InlineParser parser, md.Delimiter opener, md.Delimiter closer,
-      {required List<md.Node> Function() getChildren}) {
-    return md.Element('u', getChildren());
+  Iterable<md.Node>? close(
+      md.InlineParser parser,
+      md.Delimiter opener,
+      md.Delimiter closer, {
+        required String tag,
+        required List<md.Node> Function() getChildren,
+      }) {
+    return [md.Element('u', getChildren())];
   }
 }
 
@@ -586,7 +590,7 @@ class _ParagraphWithAlignmentSyntax
 
   @override
   bool canParse(md.BlockParser parser) {
-    if (!_alignmentNotationPattern.hasMatch(parser.current)) {
+    if (!_alignmentNotationPattern.hasMatch(parser.current.content)) {
       return false;
     }
 
@@ -603,7 +607,7 @@ class _ParagraphWithAlignmentSyntax
     /// Therefore, the paragraph alignment token is actually regular content. This parser doesn't need to
     /// take any action.
     if (_standardNonParagraphBlockSyntaxes
-        .any((syntax) => syntax.pattern.hasMatch(nextLine))) {
+        .any((syntax) => syntax.pattern.hasMatch(nextLine.content))) {
       return false;
     }
 
@@ -614,7 +618,7 @@ class _ParagraphWithAlignmentSyntax
 
   @override
   md.Node? parse(md.BlockParser parser) {
-    final match = _alignmentNotationPattern.firstMatch(parser.current);
+    final match = _alignmentNotationPattern.firstMatch(parser.current.content);
 
     // We've parsed the alignment token on the current line. We know a paragraph starts on the
     // next line. Move the parser to the next line so that we can parse the paragraph.
@@ -673,12 +677,12 @@ class _EmptyLinePreservingParagraphSyntax extends md.BlockSyntax {
   @override
   md.Node? parse(md.BlockParser parser) {
     final childLines = <String>[];
-    final startsWithEmptyLine = parser.current.isEmpty;
+    final startsWithEmptyLine = parser.current.content.isEmpty;
 
     // A hard line break causes the next line to be treated
     // as part of the same paragraph, except if the next line is
     // the beginning of another block element.
-    bool hasHardLineBreak = _endsWithHardLineBreak(parser.current);
+    bool hasHardLineBreak = _endsWithHardLineBreak(parser.current.content);
 
     if (startsWithEmptyLine) {
       // The parser started at an empty line.
@@ -694,7 +698,7 @@ class _EmptyLinePreservingParagraphSyntax extends md.BlockSyntax {
         return null;
       }
 
-      if (!_blankLinePattern.hasMatch(parser.current)) {
+      if (!_blankLinePattern.hasMatch(parser.current.content)) {
         // We found an empty line, but the following line isn't blank.
         // As there is no hard line break, the first line is consumed
         // as a separator between blocks.
@@ -707,7 +711,7 @@ class _EmptyLinePreservingParagraphSyntax extends md.BlockSyntax {
       childLines.add('');
 
       // Check for a hard line break, so we consume the next line if we found one.
-      hasHardLineBreak = _endsWithHardLineBreak(parser.current);
+      hasHardLineBreak = _endsWithHardLineBreak(parser.current.content);
       parser.advance();
     }
 
@@ -716,9 +720,9 @@ class _EmptyLinePreservingParagraphSyntax extends md.BlockSyntax {
     // ends with a hard line break.
     while (!_isAtParagraphEnd(parser, ignoreEmptyBlocks: hasHardLineBreak)) {
       final currentLine = parser.current;
-      childLines.add(currentLine);
+      childLines.add(currentLine.content);
 
-      hasHardLineBreak = _endsWithHardLineBreak(currentLine);
+      hasHardLineBreak = _endsWithHardLineBreak(currentLine.content);
 
       parser.advance();
     }
@@ -806,7 +810,7 @@ class _TaskSyntax extends md.BlockSyntax {
 
   @override
   md.Node? parse(md.BlockParser parser) {
-    final match = pattern.firstMatch(parser.current);
+    final match = pattern.firstMatch(parser.current.content);
     if (match == null) {
       return null;
     }
@@ -824,9 +828,9 @@ class _TaskSyntax extends md.BlockSyntax {
     // - find a blank line OR
     // - find the start of another block element (including another task)
     while (!parser.isDone &&
-        !_blankLinePattern.hasMatch(parser.current) &&
+        !_blankLinePattern.hasMatch(parser.current.content) &&
         !_standardNonParagraphBlockSyntaxes
-            .any((syntax) => syntax.pattern.hasMatch(parser.current))) {
+            .any((syntax) => syntax.pattern.hasMatch(parser.current.content))) {
       buffer.write('\n');
       buffer.write(parser.current);
 
@@ -862,7 +866,7 @@ class _HeaderWithAlignmentSyntax extends md.BlockSyntax {
 
   @override
   bool canParse(md.BlockParser parser) {
-    if (!_alignmentNotationPattern.hasMatch(parser.current)) {
+    if (!_alignmentNotationPattern.hasMatch(parser.current.content)) {
       return false;
     }
 
@@ -876,7 +880,7 @@ class _HeaderWithAlignmentSyntax extends md.BlockSyntax {
     }
 
     // Only parse if the next line is header.
-    if (!_headerSyntax.pattern.hasMatch(nextLine)) {
+    if (!_headerSyntax.pattern.hasMatch(nextLine.content)) {
       return false;
     }
 
@@ -885,7 +889,7 @@ class _HeaderWithAlignmentSyntax extends md.BlockSyntax {
 
   @override
   md.Node? parse(md.BlockParser parser) {
-    final match = _alignmentNotationPattern.firstMatch(parser.current);
+    final match = _alignmentNotationPattern.firstMatch(parser.current.content);
 
     // We've parsed the alignment token on the current line. We know a header starts on the
     // next line. Move the parser to the next line so that we can parse the header.

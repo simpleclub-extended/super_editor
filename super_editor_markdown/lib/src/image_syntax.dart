@@ -24,7 +24,7 @@ class SuperEditorImageSyntax extends md.LinkSyntax {
         );
 
   @override
-  md.Node? close(
+  Iterable<md.Node>? close(
     md.InlineParser parser,
     covariant md.SimpleDelimiter opener,
     md.Delimiter? closer, {
@@ -38,7 +38,10 @@ class SuperEditorImageSyntax extends md.LinkSyntax {
     if (parser.pos + 1 >= parser.source!.length) {
       // The `]` is at the end of the document, but this may still be a valid
       // shortcut reference link.
-      return _tryCreateReferenceLink(parser, text, getChildren: getChildren);
+      final link = _tryCreateReferenceLink(parser, text, getChildren: getChildren);
+      if (link != null) {
+        return [link];
+      }
     }
 
     // Peek at the next character; don't advance, so as to avoid later stepping
@@ -51,7 +54,7 @@ class SuperEditorImageSyntax extends md.LinkSyntax {
       var leftParenIndex = parser.pos;
       var inlineLink = _parseInlineLink(parser);
       if (inlineLink != null) {
-        return _tryCreateInlineLink(parser, inlineLink, getChildren: getChildren);
+        return [_tryCreateInlineLink(parser, inlineLink, getChildren: getChildren)];
       }
       // At this point, we've matched `[...](`, but that `(` did not pan out to
       // be an inline link. We must now check if `[...]` is simply a shortcut
@@ -60,7 +63,10 @@ class SuperEditorImageSyntax extends md.LinkSyntax {
       // Reset the parser position.
       parser.pos = leftParenIndex;
       parser.advanceBy(-1);
-      return _tryCreateReferenceLink(parser, text, getChildren: getChildren);
+      final link = _tryCreateReferenceLink(parser, text, getChildren: getChildren);
+      if (link != null) {
+        return [link];
+      }
     }
 
     if (char == AsciiTable.leftBracket) {
@@ -71,18 +77,27 @@ class SuperEditorImageSyntax extends md.LinkSyntax {
         // That opening `[` is not actually part of the link. Maybe a
         // *shortcut* reference link (followed by a `[`).
         parser.advanceBy(1);
-        return _tryCreateReferenceLink(parser, text, getChildren: getChildren);
+        final link = _tryCreateReferenceLink(parser, text, getChildren: getChildren);
+        if (link != null) {
+          return [link];
+        }
       }
       var label = _parseReferenceLinkLabel(parser);
       if (label != null) {
-        return _tryCreateReferenceLink(parser, label, getChildren: getChildren);
+        final link = _tryCreateReferenceLink(parser, label, getChildren: getChildren);
+        if (link != null) {
+          return [link];
+        }
       }
       return null;
     }
 
     // The link text (inside `[...]`) was not followed with a opening `(` nor
     // an opening `[`. Perhaps just a simple shortcut reference link (`[...]`).
-    return _tryCreateReferenceLink(parser, text, getChildren: getChildren);
+    final link = _tryCreateReferenceLink(parser, text, getChildren: getChildren);
+    if (link != null) {
+      return [link];
+    }
   }
 
   /// Parses a size using the notation `=widthxheight`.
