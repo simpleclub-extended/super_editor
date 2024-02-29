@@ -83,7 +83,8 @@ class InsideTheToolbox extends StatelessWidget {
   Widget _buildSelectableText() {
     return _buildToolDescription(
       title: 'SelectableText',
-      description: "Super Editor includes a SelectableText widget built from the ground up. Instead of building "
+      description:
+          "Super Editor includes a SelectableText widget built from the ground up. Instead of building "
           "gesture detection into SelectableText, we provide all the painting abilities, and you hook up whatever "
           "gestures you'd like. This makes Super Editor's SelectableText fundamentally different and more composable "
           "than Flutter's SelectableText.\n\nSuper Editor's text editor and SuperTextField are both based on this "
@@ -99,7 +100,8 @@ class InsideTheToolbox extends StatelessWidget {
           ),
           child: SuperTextWithSelection.single(
             richText: const TextSpan(
-              text: 'This text is selectable. The caret and selection rendering is custom.',
+              text:
+                  'This text is selectable. The caret and selection rendering is custom.',
               style: TextStyle(
                 color: Colors.black,
                 fontSize: 16,
@@ -120,7 +122,8 @@ class InsideTheToolbox extends StatelessWidget {
   Widget _buildAttributedText() {
     return _buildToolDescription(
       title: 'AttributedText',
-      description: "At the heart of everything in Super Editor is AttributedText, a representation of text along with"
+      description:
+          "At the heart of everything in Super Editor is AttributedText, a representation of text along with"
           ' any number of "attributions". These attributions can represent styles, like bold and italics, or more '
           "complicated things like links.\n\nThe closest thing that Flutter offers to Super Editor's AttributedText "
           "is TextSpans, which are used for applying partial styles to text. But TextSpans include rendering-specific"
@@ -195,7 +198,7 @@ class _AttributedTextDemoState extends State<_AttributedTextDemo> {
 
   void _computeStyledText() {
     final text = AttributedText(
-      text: 'This is some text styled with AttributedText',
+      'This is some text styled with AttributedText',
     );
 
     for (final range in _boldRanges) {
@@ -324,7 +327,8 @@ class _TextRangeSelectorState extends State<TextRangeSelector> {
   }
 
   void _onTapUp(TapUpDetails details) {
-    final selectedCellIndex = _getCellIndexFromLocalOffset(details.localPosition);
+    final selectedCellIndex =
+        _getCellIndexFromLocalOffset(details.localPosition);
     setState(() {
       _selectedCells[selectedCellIndex] = !_selectedCells[selectedCellIndex];
       _reportSelectedRanges();
@@ -332,12 +336,14 @@ class _TextRangeSelectorState extends State<TextRangeSelector> {
   }
 
   void _onPanStart(DragStartDetails details) {
-    final selectedCellIndex = _getCellIndexFromLocalOffset(details.localPosition);
+    final selectedCellIndex =
+        _getCellIndexFromLocalOffset(details.localPosition);
     _selectionMode = _selectedCells[selectedCellIndex] ? 'deselect' : 'select';
   }
 
   void _onPanUpdate(DragUpdateDetails details) {
-    final selectedCellIndex = _getCellIndexFromLocalOffset(details.localPosition);
+    final selectedCellIndex =
+        _getCellIndexFromLocalOffset(details.localPosition);
     setState(() {
       _selectedCells[selectedCellIndex] = _selectionMode == 'select';
       _reportSelectedRanges();
@@ -345,7 +351,10 @@ class _TextRangeSelectorState extends State<TextRangeSelector> {
   }
 
   int _getCellIndexFromLocalOffset(Offset localOffset) {
-    return (localOffset.dx / widget.cellWidth).floor().clamp(0.0, widget.cellCount - 1).toInt();
+    return (localOffset.dx / widget.cellWidth)
+        .floor()
+        .clamp(0.0, widget.cellCount - 1)
+        .toInt();
   }
 
   void _reportSelectedRanges() {
@@ -361,12 +370,12 @@ class _TextRangeSelectorState extends State<TextRangeSelector> {
           rangeStart = i;
         }
       } else if (rangeStart >= 0) {
-        ranges.add(SpanRange(start: rangeStart, end: i - 1));
+        ranges.add(SpanRange(rangeStart, i - 1));
         rangeStart = -1;
       }
     }
     if (rangeStart >= 0) {
-      ranges.add(SpanRange(start: rangeStart, end: widget.cellCount - 1));
+      ranges.add(SpanRange(rangeStart, widget.cellCount - 1));
     }
 
     widget.onRangesChange?.call(ranges);
@@ -386,8 +395,11 @@ class _TextRangeSelectorState extends State<TextRangeSelector> {
             width: widget.cellWidth,
             height: widget.cellHeight,
             decoration: BoxDecoration(
-              border: Border.all(color: _isSelected(index) ? Colors.tealAccent : Colors.grey),
-              color: _isSelected(index) ? Colors.tealAccent.withOpacity(0.7) : Colors.grey.withOpacity(0.7),
+              border: Border.all(
+                  color: _isSelected(index) ? Colors.tealAccent : Colors.grey),
+              color: _isSelected(index)
+                  ? Colors.tealAccent.withOpacity(0.7)
+                  : Colors.grey.withOpacity(0.7),
             ),
           ),
         ),

@@ -60,7 +60,8 @@ class _FeaturedEditorState extends State<FeaturedEditor> {
 
     // Create the DocumentEditor, which is responsible for applying all
     // content changes to the Document.
-    _docEditor = createDefaultDocumentEditor(document: _doc, composer: _composer);
+    _docEditor =
+        createDefaultDocumentEditor(document: _doc, composer: _composer);
 
     // Create a FocusNode so that we can explicitly toggle editor focus.
     _editorFocusNode = FocusNode();
@@ -113,12 +114,14 @@ class _FeaturedEditorState extends State<FeaturedEditor> {
       return;
     }
 
-    final docBoundingBox = (_docLayoutKey.currentState! as DocumentLayout).getRectForSelection(
+    final docBoundingBox =
+        (_docLayoutKey.currentState! as DocumentLayout).getRectForSelection(
       _composer.selection!.base,
       _composer.selection!.extent,
     );
     final parentBox = context.findRenderObject()! as RenderBox;
-    final docBox = _docLayoutKey.currentContext!.findRenderObject()! as RenderBox;
+    final docBox =
+        _docLayoutKey.currentContext!.findRenderObject()! as RenderBox;
     final parentInOverlayOffset = parentBox.localToGlobal(Offset.zero);
     final overlayBoundingBox = Rect.fromPoints(
       docBox.localToGlobal(docBoundingBox!.topLeft, ancestor: parentBox),
@@ -239,7 +242,7 @@ MutableDocument _createInitialDocument() {
       ParagraphNode(
         id: Editor.createNodeId(),
         text: AttributedText(
-          text: 'A supercharged rich text editor for Flutter',
+          'A supercharged rich text editor for Flutter',
         ),
         metadata: {
           'blockType': header1Attribution,
@@ -249,8 +252,8 @@ MutableDocument _createInitialDocument() {
       ParagraphNode(
         id: Editor.createNodeId(),
         text: AttributedText(
-          text: 'The missing WYSIWYG editor for Flutter.',
-          spans: AttributedSpans(
+          'The missing WYSIWYG editor for Flutter.',
+          AttributedSpans(
             attributions: [
               const SpanMarker(
                 attribution: boldAttribution,
@@ -269,9 +272,8 @@ MutableDocument _createInitialDocument() {
       ParagraphNode(
         id: Editor.createNodeId(),
         text: AttributedText(
-          text:
-              'Open source and written entirely in Dart. Comes with a modular architecture that allows you to customize it to your needs.',
-          spans: AttributedSpans(
+          'Open source and written entirely in Dart. Comes with a modular architecture that allows you to customize it to your needs.',
+          AttributedSpans(
             attributions: [
               const SpanMarker(
                 attribution: _underlineAttribution,
@@ -290,7 +292,7 @@ MutableDocument _createInitialDocument() {
       ParagraphNode(
         id: Editor.createNodeId(),
         text: AttributedText(
-          text: 'Try it right here >>',
+          'Try it right here >>',
         ),
       ),
     ],
@@ -309,7 +311,8 @@ const _baseTextStyle = TextStyle(
 final _compactStylesheet = defaultStylesheet.copyWith(
   documentPadding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
   addRulesAfter: [
-    StyleRule(BlockSelector.all, (doc, docNode) => {'textStyle': _baseTextStyle}),
+    StyleRule(
+        BlockSelector.all, (doc, docNode) => {'textStyle': _baseTextStyle}),
     StyleRule(
       BlockSelector.all.after(header1Attribution.name),
       (doc, docNode) => {Styles.padding: const CascadingPadding.only(top: 24)},
@@ -360,7 +363,8 @@ final _compactStylesheet = defaultStylesheet.copyWith(
 final _wideStylesheet = defaultStylesheet.copyWith(
   documentPadding: const EdgeInsets.symmetric(horizontal: 54, vertical: 60),
   addRulesAfter: [
-    StyleRule(BlockSelector.all, (doc, docNode) => {Styles.textStyle: _baseTextStyle}),
+    StyleRule(BlockSelector.all,
+        (doc, docNode) => {Styles.textStyle: _baseTextStyle}),
     StyleRule(
       BlockSelector.all.after(header1Attribution.name),
       (doc, docNode) => {Styles.padding: const CascadingPadding.only(top: 48)},

@@ -26,6 +26,16 @@ dev_dependencies:
     sdk: flutter
   lint: ^2.1.2
 
+dependency_overrides:
+  # Override to local mono-repo path so devs can test this repo
+  # against changes that they're making to other mono-repo packages
+  attributed_text:
+    path: ../attributed_text
+  super_editor:
+    path: ../super_editor
+  super_text_layout:
+    path: ../super_text_layout
+
 flutter:
   uses-material-design: true
   assets:

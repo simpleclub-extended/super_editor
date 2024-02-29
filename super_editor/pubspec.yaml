@@ -37,7 +37,7 @@ dependencies:
       path: super_text_layout
       ref: simpleclub-stable
   url_launcher: ^6.1.9
-  uuid: ^3.0.3
+  uuid: ^4.2.1
   overlord: ^0.0.3+4
 
   # Dependencies for testing tools that we ship with super_editor

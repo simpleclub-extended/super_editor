@@ -16,7 +16,7 @@ dependencies:
       path: super_editor
       ref: simpleclub-stable
   logging: ^1.0.1
-  markdown: ^5.0.0
+  markdown: ^7.1.0
 
 dependency_overrides:
   # Override to local mono-repo path so devs can test this repo
