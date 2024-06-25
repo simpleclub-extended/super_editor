@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 import 'package:super_editor/src/core/document.dart';
 import 'package:super_editor/src/core/document_selection.dart';
 import 'package:super_editor/src/infrastructure/_logging.dart';
@@ -71,6 +72,9 @@ class DocumentImeInputClient extends TextInputConnectionDecorator with TextInput
   ///
   /// This value is updated on [updateFloatingCursor].
   bool _isFloatingCursorVisible = false;
+
+  /// Whether or not a `TextInputAction.newline` was performed on the current frame.
+  bool _hasPerformedNewLineActionThisFrame = false;
 
   void _onContentChange() {
     if (!attached) {
@@ -160,7 +164,7 @@ class DocumentImeInputClient extends TextInputConnectionDecorator with TextInput
   }
 
   @override
-  AutofillScope? get currentAutofillScope => throw UnimplementedError();
+  AutofillScope? get currentAutofillScope => null;
 
   @override
   TextEditingValue get currentTextEditingValue => _currentTextEditingValue;
@@ -199,6 +203,15 @@ class DocumentImeInputClient extends TextInputConnectionDecorator with TextInput
       // to select an offset bigger than the paragraph's length.
       //
       // As we already change the selection when the floating cursor moves, we ignore these deltas.
+      return;
+    }
+
+    if (_hasPerformedNewLineActionThisFrame && defaultTargetPlatform == TargetPlatform.iOS) {
+      // On iOS, pressing the new line action button can trigger the IME to try to apply suggestions
+      // after we have already processed the new line insertion. This causes the deltas related to suggestions
+      // to have offsets that are invalid for us. Ignore any new deltas on the same frame and forcefully
+      // update the IME with our current state.
+      imeConnection.value?.setEditingState(_currentTextEditingValue);
       return;
     }
 
@@ -272,6 +285,16 @@ class DocumentImeInputClient extends TextInputConnectionDecorator with TextInput
     editorImeLog.fine("IME says to perform action: $action");
     if (action == TextInputAction.newline) {
       textDeltasDocumentEditor.insertNewline();
+
+      // Keep track that we have performed a new line action on this frame to work around an iOS timing issue,
+      // where the iOS IME might report text deltas related to keyboard suggestions after we already processed
+      // the new line action.
+      //
+      // See https://github.com/superlistapp/super_editor/issues/2007 for more information.
+      _hasPerformedNewLineActionThisFrame = true;
+      WidgetsBinding.instance.addPostFrameCallback((timeStamp) {
+        _hasPerformedNewLineActionThisFrame = false;
+      });
     }
   }
 

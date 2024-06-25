@@ -150,7 +150,8 @@ class CaretDocumentOverlayState extends DocumentLayoutLayerState<CaretDocumentOv
   }
 
   @override
-  Rect? computeLayoutDataWithDocumentLayout(BuildContext context, DocumentLayout documentLayout) {
+  Rect? computeLayoutDataWithDocumentLayout(
+      BuildContext contentLayersContext, BuildContext documentContext, DocumentLayout documentLayout) {
     final documentSelection = widget.composer.selection;
     if (documentSelection == null) {
       return null;
@@ -164,7 +165,8 @@ class CaretDocumentOverlayState extends DocumentLayoutLayerState<CaretDocumentOv
       return null;
     }
 
-    Rect caretRect = documentLayout.getEdgeForPosition(documentSelection.extent)!;
+    Rect caretRect =
+        documentLayout.getEdgeForPosition(documentSelection.extent)!.translate(-widget.caretStyle.width / 2, 0.0);
 
     final overlayBox = context.findRenderObject() as RenderBox?;
     if (overlayBox != null && overlayBox.hasSize && caretRect.left + widget.caretStyle.width >= overlayBox.size.width) {

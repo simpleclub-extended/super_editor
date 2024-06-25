@@ -38,6 +38,52 @@ void main() {
         expect(richText.getSpanForPosition(const TextPosition(offset: 6))!.style!.color, Colors.white);
         expect(richText.getSpanForPosition(const TextPosition(offset: 10))!.style!.color, Colors.white);
       });
+
+      testWidgetsOnAllPlatforms("overrides existing color attributions", (tester) async {
+        final stylesheet = defaultStylesheet.copyWith(
+          selectedTextColorStrategy: ({required Color originalTextColor, required Color selectionHighlightColor}) {
+            return Colors.white;
+          },
+        );
+
+        // Pump an editor with green text throught the document.
+        await tester //
+            .createDocument()
+            .withCustomContent(
+              MutableDocument(
+                nodes: [
+                  ParagraphNode(
+                    id: '1',
+                    text: AttributedText(
+                      'Lorem ipsum dolor',
+                      AttributedSpans(
+                        attributions: [
+                          const SpanMarker(
+                              attribution: ColorAttribution(Colors.green), offset: 0, markerType: SpanMarkerType.start),
+                          const SpanMarker(
+                              attribution: ColorAttribution(Colors.green), offset: 16, markerType: SpanMarkerType.end),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            )
+            .useStylesheet(stylesheet)
+            .pump();
+
+        // Double tap to select the word "Lorem".
+        await tester.doubleTapInParagraph('1', 2);
+
+        // Ensure that the first word is white and the rest is green.
+        final richText = SuperEditorInspector.findRichTextInParagraph('1');
+
+        expect(richText.getSpanForPosition(const TextPosition(offset: 0))!.style!.color, Colors.white);
+        expect(richText.getSpanForPosition(const TextPosition(offset: 4))!.style!.color, Colors.white);
+
+        expect(richText.getSpanForPosition(const TextPosition(offset: 5))!.style!.color, Colors.green);
+        expect(richText.getSpanForPosition(const TextPosition(offset: 16))!.style!.color, Colors.green);
+      });
     });
 
     testWidgetsOnArbitraryDesktop("calculates upstream document selection within a single node", (tester) async {
@@ -619,6 +665,7 @@ Second Paragraph
       // result.
 
       final textFieldFocus = FocusNode();
+      final subtreeFocus = FocusNode();
       final editorFocus = FocusNode();
       await tester
           .createDocument()
@@ -630,9 +677,9 @@ Second Paragraph
               home: Scaffold(
                 body: Column(
                   children: [
-                    FocusWithCustomParent(
-                      focusNode: textFieldFocus,
-                      parentFocusNode: editorFocus,
+                    Focus(
+                      focusNode: subtreeFocus,
+                      parentNode: editorFocus,
                       child: SuperTextField(
                         focusNode: textFieldFocus,
                         // We put the SuperTextField in keyboard mode so that the SuperTextField
@@ -686,6 +733,7 @@ Second Paragraph
       // result.
 
       final textFieldFocus = FocusNode();
+      final subtreeFocus = FocusNode();
       final editorFocus = FocusNode();
       await tester
           .createDocument()
@@ -700,9 +748,9 @@ Second Paragraph
               home: Scaffold(
                 body: Column(
                   children: [
-                    FocusWithCustomParent(
-                      focusNode: textFieldFocus,
-                      parentFocusNode: editorFocus,
+                    Focus(
+                      focusNode: subtreeFocus,
+                      parentNode: editorFocus,
                       child: SuperTextField(
                         focusNode: textFieldFocus,
                         // We put the SuperTextField in keyboard mode so that the SuperTextField
@@ -752,6 +800,7 @@ Second Paragraph
 
     testWidgetsOnAllPlatforms("retains selection when user types in sub-focus text field", (tester) async {
       final textFieldFocus = FocusNode();
+      final subTreeFocusNode = FocusNode();
       final textFieldController = ImeAttributedTextEditingController();
       final editorFocus = FocusNode();
       const initialEditorSelection = DocumentSelection(
@@ -772,9 +821,9 @@ Second Paragraph
               home: Scaffold(
                 body: Column(
                   children: [
-                    FocusWithCustomParent(
-                      focusNode: textFieldFocus,
-                      parentFocusNode: editorFocus,
+                    Focus(
+                      focusNode: subTreeFocusNode,
+                      parentNode: editorFocus,
                       child: SuperTextField(
                         focusNode: textFieldFocus,
                         textController: textFieldController,

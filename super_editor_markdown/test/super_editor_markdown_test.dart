@@ -982,7 +982,7 @@ This is some code
         expect(styledText.getAllAttributionsAt(8).contains(boldAttribution), true);
         expect(styledText.getAllAttributionsAt(13).containsAll([boldAttribution, italicsAttribution]), true);
         expect(styledText.getAllAttributionsAt(19).isEmpty, true);
-        expect(styledText.getAllAttributionsAt(40).single, LinkAttribution(url: Uri.https('example.org', '')));
+        expect(styledText.getAllAttributionsAt(40).single, LinkAttribution.fromUri(Uri.https('example.org', '')));
       });
 
       test('paragraph with special HTML symbols keeps the symbols by default', () {
@@ -1027,9 +1027,8 @@ This is some code
         expect(styledText.getAllAttributionsAt(8).contains(boldAttribution), true);
         expect(styledText.getAllAttributionsAt(13).containsAll([boldAttribution, italicsAttribution]), true);
         expect(
-            styledText
-                .getAllAttributionsAt(20)
-                .containsAll([boldAttribution, italicsAttribution, LinkAttribution(url: Uri.https('example.org', ''))]),
+            styledText.getAllAttributionsAt(20).containsAll(
+                [boldAttribution, italicsAttribution, LinkAttribution.fromUri(Uri.https('example.org', ''))]),
             true);
         expect(styledText.getAllAttributionsAt(25).containsAll([boldAttribution, italicsAttribution]), true);
       });
@@ -1051,7 +1050,7 @@ This is some code
         expect(
             styledText
                 .getAllAttributionsAt(13)
-                .containsAll([boldAttribution, LinkAttribution(url: Uri.https('example.org', ''))]),
+                .containsAll([boldAttribution, LinkAttribution.fromUri(Uri.https('example.org', ''))]),
             true);
       });
 
@@ -1069,7 +1068,7 @@ This is some code
         expect(styledText.text, 'This **is a** link test');
 
         expect(styledText.getAllAttributionsAt(9).isEmpty, true);
-        expect(styledText.getAllAttributionsAt(12).single, LinkAttribution(url: Uri.https('example.org', '')));
+        expect(styledText.getAllAttributionsAt(12).single, LinkAttribution.fromUri(Uri.https('example.org', '')));
       });
 
       test('empty link', () {
@@ -1085,7 +1084,7 @@ This is some code
         final styledText = paragraph.text;
         expect(styledText.text, 'This is a link test');
 
-        expect(styledText.getAllAttributionsAt(12).single, LinkAttribution(url: Uri.parse('')));
+        expect(styledText.getAllAttributionsAt(12).single, LinkAttribution.fromUri(Uri.parse('')));
       });
 
       test('unordered list', () {
@@ -1128,6 +1127,68 @@ This is some code
         expect(document.nodes.first, isA<ListItemNode>());
         expect((document.nodes.first as ListItemNode).type, ListItemType.unordered);
         expect((document.nodes.first as ListItemNode).text.text, isEmpty);
+      });
+
+      test('unordered list followd by empty list item', () {
+        const markdown = """- list item 1
+    - """;
+
+        final document = deserializeMarkdownToDocument(markdown);
+
+        expect(document.nodes.length, 1);
+
+        expect(document.nodes[0], isA<ListItemNode>());
+        expect((document.nodes[0] as ListItemNode).type, ListItemType.unordered);
+        expect((document.nodes[0] as ListItemNode).text.text, 'list item 1');
+      });
+
+      test('parses mixed unordered and ordered items', () {
+        const markdown = """
+1. Ordered 1
+   - Unordered 1
+   - Unordered 2
+
+2. Ordered 2
+   - Unordered 1
+   - Unordered 2
+
+3. Ordered 3
+   - Unordered 1
+   - Unordered 2""";
+
+        final document = deserializeMarkdownToDocument(markdown);
+
+        expect(document.nodes.length, 9);
+        for (final node in document.nodes) {
+          expect(node, isA<ListItemNode>());
+        }
+
+        expect((document.nodes[0] as ListItemNode).type, ListItemType.ordered);
+        expect((document.nodes[0] as ListItemNode).text.text, 'Ordered 1');
+
+        expect((document.nodes[1] as ListItemNode).type, ListItemType.unordered);
+        expect((document.nodes[1] as ListItemNode).text.text, 'Unordered 1');
+
+        expect((document.nodes[2] as ListItemNode).type, ListItemType.unordered);
+        expect((document.nodes[2] as ListItemNode).text.text, 'Unordered 2');
+
+        expect((document.nodes[3] as ListItemNode).type, ListItemType.ordered);
+        expect((document.nodes[3] as ListItemNode).text.text, 'Ordered 2');
+
+        expect((document.nodes[4] as ListItemNode).type, ListItemType.unordered);
+        expect((document.nodes[4] as ListItemNode).text.text, 'Unordered 1');
+
+        expect((document.nodes[5] as ListItemNode).type, ListItemType.unordered);
+        expect((document.nodes[5] as ListItemNode).text.text, 'Unordered 2');
+
+        expect((document.nodes[6] as ListItemNode).type, ListItemType.ordered);
+        expect((document.nodes[6] as ListItemNode).text.text, 'Ordered 3');
+
+        expect((document.nodes[7] as ListItemNode).type, ListItemType.unordered);
+        expect((document.nodes[7] as ListItemNode).text.text, 'Unordered 1');
+
+        expect((document.nodes[8] as ListItemNode).type, ListItemType.unordered);
+        expect((document.nodes[8] as ListItemNode).text.text, 'Unordered 2');
       });
 
       test('unordered list with empty lines between items', () {

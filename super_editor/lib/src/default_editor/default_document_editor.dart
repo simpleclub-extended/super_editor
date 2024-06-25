@@ -59,6 +59,12 @@ final defaultRequestHandlers = List.unmodifiable(<EditRequestHandler>[
           attributions: request.attributions,
         )
       : null,
+  (request) => request is InsertAttributedTextRequest
+      ? InsertAttributedTextCommand(
+          documentPosition: request.documentPosition,
+          textToInsert: request.textToInsert,
+        )
+      : null,
   (request) => request is PasteStructuredContentEditorRequest
       ? PasteStructuredContentEditorCommand(
           content: request.content,
@@ -128,6 +134,22 @@ final defaultRequestHandlers = List.unmodifiable(<EditRequestHandler>[
           alignment: request.alignment,
         )
       : null,
+  (request) => request is IndentParagraphRequest
+      ? IndentParagraphCommand(
+          request.nodeId,
+        )
+      : null,
+  (request) => request is UnIndentParagraphRequest
+      ? UnIndentParagraphCommand(
+          request.nodeId,
+        )
+      : null,
+  (request) => request is SetParagraphIndentRequest
+      ? SetParagraphIndentCommand(
+          request.nodeId,
+          level: request.level,
+        )
+      : null,
   (request) => request is ChangeParagraphBlockTypeRequest
       ? ChangeParagraphBlockTypeCommand(
           nodeId: request.nodeId,
@@ -157,6 +179,15 @@ final defaultRequestHandlers = List.unmodifiable(<EditRequestHandler>[
           nodeId: request.nodeId,
           isComplete: request.isComplete,
         )
+      : null,
+  (request) => request is IndentTaskRequest //
+      ? IndentTaskCommand(request.nodeId)
+      : null,
+  (request) => request is UnIndentTaskRequest //
+      ? UnIndentTaskCommand(request.nodeId)
+      : null,
+  (request) => request is SetTaskIndentRequest //
+      ? SetTaskIndentCommand(request.nodeId, request.indent)
       : null,
   (request) => request is SplitExistingTaskRequest
       ? SplitExistingTaskCommand(
@@ -228,4 +259,6 @@ final defaultEditorReactions = List.unmodifiable([
   const ImageUrlConversionReaction(),
   const DashConversionReaction(),
   //---- End Content Conversions ---
+
+  UpdateSubTaskIndentAfterTaskDeletionReaction(),
 ]);

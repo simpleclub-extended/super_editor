@@ -282,6 +282,26 @@ class _EditorToolbarState extends State<EditorToolbar> {
     ]);
   }
 
+  /// Toggles superscript styling for the current selected text.
+  void _toggleSuperscript() {
+    widget.editor!.execute([
+      ToggleTextAttributionsRequest(
+        documentRange: widget.composer.selection!,
+        attributions: {superscriptAttribution},
+      ),
+    ]);
+  }
+
+  /// Toggles subscript styling for the current selected text.
+  void _toggleSubscript() {
+    widget.editor!.execute([
+      ToggleTextAttributionsRequest(
+        documentRange: widget.composer.selection!,
+        attributions: {subscriptAttribution},
+      ),
+    ]);
+  }
+
   /// Returns true if the current text selection includes part
   /// or all of a single link, returns false if zero links are
   /// in the selection or if 2+ links are in the selection.
@@ -384,7 +404,7 @@ class _EditorToolbarState extends State<EditorToolbar> {
 
     final trimmedRange = _trimTextRangeWhitespace(text, selectionRange);
 
-    final linkAttribution = LinkAttribution(url: Uri.parse(url));
+    final linkAttribution = LinkAttribution.fromUri(Uri.parse(url));
 
     widget.editor!.execute([
       AddTextAttributionsRequest(
@@ -573,6 +593,22 @@ class _EditorToolbarState extends State<EditorToolbar> {
               ),
               Center(
                 child: IconButton(
+                  onPressed: _toggleSuperscript,
+                  icon: const Icon(Icons.superscript),
+                  splashRadius: 16,
+                  tooltip: AppLocalizations.of(context)!.labelSuperscript,
+                ),
+              ),
+              Center(
+                child: IconButton(
+                  onPressed: _toggleSubscript,
+                  icon: const Icon(Icons.subscript),
+                  splashRadius: 16,
+                  tooltip: AppLocalizations.of(context)!.labelSubscript,
+                ),
+              ),
+              Center(
+                child: IconButton(
                   onPressed: _areMultipleLinksSelected() ? null : _onLinkPressed,
                   icon: const Icon(Icons.link),
                   color: _isSingleLinkSelected() ? const Color(0xFF007AFF) : IconTheme.of(context).color,
@@ -664,35 +700,28 @@ class _EditorToolbarState extends State<EditorToolbar> {
         child: Row(
           children: [
             Expanded(
-              child: Focus(
+              child: SuperTextField(
                 focusNode: _urlFocusNode,
-                parentNode: _popoverFocusNode,
-                // We use a SuperTextField instead of a TextField because TextField
-                // automatically re-parents its FocusNode, which causes #609. Flutter
-                // #106923 tracks the TextField issue.
-                child: SuperTextField(
-                  focusNode: _urlFocusNode,
-                  textController: _urlController,
-                  minLines: 1,
-                  maxLines: 1,
-                  inputSource: TextInputSource.ime,
-                  hintBehavior: HintBehavior.displayHintUntilTextEntered,
-                  hintBuilder: (context) {
-                    return const Text(
-                      "enter a url...",
-                      style: TextStyle(
-                        color: Colors.grey,
-                        fontSize: 16,
-                      ),
-                    );
-                  },
-                  textStyleBuilder: (_) {
-                    return const TextStyle(
-                      color: Colors.black,
+                textController: _urlController,
+                minLines: 1,
+                maxLines: 1,
+                inputSource: TextInputSource.ime,
+                hintBehavior: HintBehavior.displayHintUntilTextEntered,
+                hintBuilder: (context) {
+                  return const Text(
+                    "enter a url...",
+                    style: TextStyle(
+                      color: Colors.grey,
                       fontSize: 16,
-                    );
-                  },
-                ),
+                    ),
+                  );
+                },
+                textStyleBuilder: (_) {
+                  return const TextStyle(
+                    color: Colors.black,
+                    fontSize: 16,
+                  );
+                },
               ),
             ),
             IconButton(

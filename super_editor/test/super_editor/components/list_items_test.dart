@@ -460,6 +460,169 @@ void main() {
     });
 
     group('ordered list', () {
+      testWidgetsOnArbitraryDesktop('keeps sequence for items split by unordered list', (tester) async {
+        final context = await tester //
+            .createDocument()
+            .fromMarkdown("""
+1. First ordered item
+   - First unordered item
+   - Second unoredered item
+
+2. Second ordered item
+   - First unordered item
+   - Second unoredered item""") //
+            .pump();
+
+        expect(context.document.nodes.length, 6);
+
+        // Ensure the nodes have the correct type.
+        expect(context.document.nodes[0], isA<ListItemNode>());
+        expect((context.document.nodes[0] as ListItemNode).type, ListItemType.ordered);
+
+        expect(context.document.nodes[1], isA<ListItemNode>());
+        expect((context.document.nodes[1] as ListItemNode).type, ListItemType.unordered);
+
+        expect(context.document.nodes[2], isA<ListItemNode>());
+        expect((context.document.nodes[2] as ListItemNode).type, ListItemType.unordered);
+
+        expect(context.document.nodes[3], isA<ListItemNode>());
+        expect((context.document.nodes[3] as ListItemNode).type, ListItemType.ordered);
+
+        expect(context.document.nodes[4], isA<ListItemNode>());
+        expect((context.document.nodes[4] as ListItemNode).type, ListItemType.unordered);
+
+        expect(context.document.nodes[5], isA<ListItemNode>());
+        expect((context.document.nodes[5] as ListItemNode).type, ListItemType.unordered);
+
+        // Ensure the sequence was kept.
+        final firstOrderedItem = tester.widget<OrderedListItemComponent>(
+          find.ancestor(
+            of: find.byWidget(SuperEditorInspector.findWidgetForComponent(context.document.nodes[0].id)),
+            matching: find.byType(OrderedListItemComponent),
+          ),
+        );
+        expect(firstOrderedItem.listIndex, 1);
+
+        final secondOrderedItem = tester.widget<OrderedListItemComponent>(
+          find.ancestor(
+            of: find.byWidget(SuperEditorInspector.findWidgetForComponent(context.document.nodes[3].id)),
+            matching: find.byType(OrderedListItemComponent),
+          ),
+        );
+        expect(secondOrderedItem.listIndex, 2);
+      });
+
+      testWidgetsOnArbitraryDesktop('keeps sequence for items split by ordered list items with higher indentation',
+          (tester) async {
+        final context = await tester //
+            .createDocument()
+            .fromMarkdown("""
+ 1. list item 1
+ 2. list item 2
+    1. list item 2.1
+    2. list item 2.2
+ 3. list item 3
+    1. list item 3.1
+""") //
+            .pump();
+
+        expect(context.document.nodes.length, 6);
+
+        // Ensure the nodes have the correct type.
+        for (int i = 0; i < 6; i++) {
+          expect(context.document.nodes[i], isA<ListItemNode>());
+          expect((context.document.nodes[i] as ListItemNode).type, ListItemType.ordered);
+        }
+
+        // Ensure the sequence was kept.
+        expect(SuperEditorInspector.findListItemOrdinal(context.document.nodes[0].id), 1);
+        expect(SuperEditorInspector.findListItemOrdinal(context.document.nodes[1].id), 2);
+        expect(SuperEditorInspector.findListItemOrdinal(context.document.nodes[2].id), 1);
+        expect(SuperEditorInspector.findListItemOrdinal(context.document.nodes[3].id), 2);
+        expect(SuperEditorInspector.findListItemOrdinal(context.document.nodes[4].id), 3);
+        expect(SuperEditorInspector.findListItemOrdinal(context.document.nodes[5].id), 1);
+      });
+
+      testWidgetsOnArbitraryDesktop('restarts item order when separated by an unordered item', (tester) async {
+        final context = await tester //
+            .createDocument()
+            .fromMarkdown("""
+1. First ordered item
+2. Second ordered item
+- First unordered item
+- Second unordered item
+1. First ordered item
+2. Second ordered item""") //
+            .pump();
+
+        expect(context.document.nodes.length, 6);
+
+        // Ensure the nodes have the correct type.
+        expect(context.document.nodes[0], isA<ListItemNode>());
+        expect((context.document.nodes[0] as ListItemNode).type, ListItemType.ordered);
+
+        expect(context.document.nodes[1], isA<ListItemNode>());
+        expect((context.document.nodes[1] as ListItemNode).type, ListItemType.ordered);
+
+        expect(context.document.nodes[2], isA<ListItemNode>());
+        expect((context.document.nodes[2] as ListItemNode).type, ListItemType.unordered);
+
+        expect(context.document.nodes[3], isA<ListItemNode>());
+        expect((context.document.nodes[3] as ListItemNode).type, ListItemType.unordered);
+
+        expect(context.document.nodes[4], isA<ListItemNode>());
+        expect((context.document.nodes[4] as ListItemNode).type, ListItemType.ordered);
+
+        expect(context.document.nodes[5], isA<ListItemNode>());
+        expect((context.document.nodes[5] as ListItemNode).type, ListItemType.ordered);
+
+        // Ensure the sequence restarted after the unordered items.
+        expect(SuperEditorInspector.findListItemOrdinal(context.document.nodes[0].id), 1);
+        expect(SuperEditorInspector.findListItemOrdinal(context.document.nodes[1].id), 2);
+        expect(SuperEditorInspector.findListItemOrdinal(context.document.nodes[4].id), 1);
+        expect(SuperEditorInspector.findListItemOrdinal(context.document.nodes[5].id), 2);
+      });
+
+      testWidgetsOnArbitraryDesktop('does not keep sequence for items split by paragraphs', (tester) async {
+        final context = await tester //
+            .createDocument()
+            .fromMarkdown("""
+1. First ordered item
+
+A paragraph
+
+2. Second ordered item""") //
+            .pump();
+
+        expect(context.document.nodes.length, 3);
+
+        // Ensure the nodes have the correct type.
+        expect(context.document.nodes[0], isA<ListItemNode>());
+        expect((context.document.nodes[0] as ListItemNode).type, ListItemType.ordered);
+
+        expect(context.document.nodes[1], isA<ParagraphNode>());
+
+        expect(context.document.nodes[2], isA<ListItemNode>());
+        expect((context.document.nodes[2] as ListItemNode).type, ListItemType.ordered);
+
+        // Ensure the sequence reset when reaching the second list item.
+        final firstOrderedItem = tester.widget<OrderedListItemComponent>(
+          find.ancestor(
+            of: find.byWidget(SuperEditorInspector.findWidgetForComponent(context.document.nodes[0].id)),
+            matching: find.byType(OrderedListItemComponent),
+          ),
+        );
+        expect(firstOrderedItem.listIndex, 1);
+
+        final secondOrderedItem = tester.widget<OrderedListItemComponent>(
+          find.ancestor(
+            of: find.byWidget(SuperEditorInspector.findWidgetForComponent(context.document.nodes[2].id)),
+            matching: find.byType(OrderedListItemComponent),
+          ),
+        );
+        expect(secondOrderedItem.listIndex, 1);
+      });
+
       testWidgetsOnArbitraryDesktop('updates caret position when indenting', (tester) async {
         await _pumpOrderedListWithTextField(tester);
 

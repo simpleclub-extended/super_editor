@@ -80,6 +80,17 @@ class SuperEditorInspector {
     return superEditor.editContext.composer.selection;
   }
 
+  /// Returns the current composing region for the [SuperEditor] matched by
+  /// [finder], or the singular [SuperEditor] in the widget tree, if [finder]
+  /// is `null`.
+  ///
+  /// {@macro supereditor_finder}
+  static DocumentRange? findComposingRegion([Finder? finder]) {
+    final element = (finder ?? find.byType(SuperEditor)).evaluate().single as StatefulElement;
+    final superEditor = element.state as SuperEditorState;
+    return superEditor.editContext.composer.composingRegion.value;
+  }
+
   /// Returns the (x,y) offset for the caret that's currently visible in the document.
   static Offset findCaretOffsetInDocument([Finder? finder]) {
     final caret = find.byKey(DocumentKeys.caret).evaluate().singleOrNull?.renderObject as RenderBox?;
@@ -204,6 +215,44 @@ class SuperEditorInspector {
   /// {@macro supereditor_finder}
   static TextStyle? findParagraphStyle(String nodeId, [Finder? superEditorFinder]) {
     return findRichTextInParagraph(nodeId, superEditorFinder).style;
+  }
+
+  /// Finds the paragraph with the given [nodeId] and returns its indent level.
+  ///
+  /// Indent levels start at zero and increment by `1` for each level.
+  ///
+  /// {@macro supereditor_finder}
+  static int findParagraphIndent(String nodeId, [Finder? superEditorFinder]) {
+    final component = SuperEditorInspector.findWidgetForComponent(nodeId) as ParagraphComponent;
+    return component.viewModel.indent;
+  }
+
+  /// Finds the ordered list item with the given [nodeId] and returns its ordinal value.
+  ///
+  /// List items ordinals start from 1.
+  ///
+  /// {@macro supereditor_finder}
+  static int findListItemOrdinal(String nodeId, [Finder? superEditorFinder]) {
+    final listItem = find
+        .ancestor(
+          of: find.byWidget(SuperEditorInspector.findWidgetForComponent(nodeId)),
+          matching: find.byType(OrderedListItemComponent),
+        )
+        .evaluate()
+        .single
+        .widget as OrderedListItemComponent;
+
+    return listItem.listIndex;
+  }
+
+  /// Finds the task with the given [nodeId] and returns its indent level.
+  ///
+  /// Indent levels start at zero and increment by `1` for each level.
+  ///
+  /// {@macro supereditor_finder}
+  static int findTaskIndent(String nodeId, [Finder? superEditorFinder]) {
+    final component = SuperEditorInspector.findWidgetForComponent(nodeId) as TaskComponent;
+    return component.viewModel.indent;
   }
 
   /// Calculates the delta between the center of the character at [textOffset1] and and the
