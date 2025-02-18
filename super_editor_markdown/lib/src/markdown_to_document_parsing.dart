@@ -470,9 +470,9 @@ class InlineMarkdownToDocument implements md.NodeVisitor {
   String? get height => _height;
   String? _height;
 
-  AttributedText get attributedText => _textStack.first;
+  AttributedText get attributedText => textStack.first;
 
-  final List<AttributedText> _textStack = [AttributedText()];
+  final List<AttributedText> textStack = [AttributedText()];
 
   @override
   bool visitElementBefore(md.Element element) {
@@ -485,22 +485,22 @@ class InlineMarkdownToDocument implements md.NodeVisitor {
       return true;
     }
 
-    _textStack.add(AttributedText());
+    textStack.add(AttributedText());
 
     return true;
   }
 
   @override
   void visitText(md.Text text) {
-    final attributedText = _textStack.removeLast();
-    _textStack.add(attributedText.copyAndAppend(AttributedText(text.text)));
+    final attributedText = textStack.removeLast();
+    textStack.add(attributedText.copyAndAppend(AttributedText(text.text)));
   }
 
   @override
   void visitElementAfter(md.Element element) {
     // Reset to normal text style because a plain text element does
     // not receive a call to visitElementBefore().
-    final styledText = _textStack.removeLast();
+    final styledText = textStack.removeLast();
 
     if (element.tag == 'strong') {
       styledText.addAttribution(
@@ -529,11 +529,11 @@ class InlineMarkdownToDocument implements md.NodeVisitor {
       );
     }
 
-    if (_textStack.isNotEmpty) {
-      final surroundingText = _textStack.removeLast();
-      _textStack.add(surroundingText.copyAndAppend(styledText));
+    if (textStack.isNotEmpty) {
+      final surroundingText = textStack.removeLast();
+      textStack.add(surroundingText.copyAndAppend(styledText));
     } else {
-      _textStack.add(styledText);
+      textStack.add(styledText);
     }
   }
 }
