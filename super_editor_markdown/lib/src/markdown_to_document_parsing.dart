@@ -16,11 +16,16 @@ import 'super_editor_syntax.dart';
 /// To add support for parsing non-standard Markdown blocks, provide [customBlockSyntax]s
 /// that parse Markdown text into [md.Element]s, and provide [customElementToNodeConverters] that
 /// turn those [md.Element]s into [DocumentNode]s.
+///
+/// To handle custom inline markdown syntax pass [customInlineSyntax] and
+/// a custom instance of [customInlineMarkdownToDocument].
 MutableDocument deserializeMarkdownToDocument(
   String markdown, {
   MarkdownSyntax syntax = MarkdownSyntax.superEditor,
   List<md.BlockSyntax> customBlockSyntax = const [],
   List<ElementToNodeConverter> customElementToNodeConverters = const [],
+  List<md.InlineSyntax> customInlineSyntax = const [],
+  InlineMarkdownToDocument Function()? inlineMarkdownToDocumentBuilder,
   bool encodeHtml = false,
 }) {
   final markdownLines = const LineSplitter().convert(markdown).map<md.Line>((String l) {
@@ -45,7 +50,13 @@ MutableDocument deserializeMarkdownToDocument(
   final markdownNodes = blockParser.parseLines();
 
   // Convert structured markdown to a Document.
-  final nodeVisitor = _MarkdownToDocument(customElementToNodeConverters, encodeHtml, syntax);
+  final nodeVisitor = _MarkdownToDocument(
+    customElementToNodeConverters,
+    customInlineSyntax,
+    inlineMarkdownToDocumentBuilder,
+    encodeHtml,
+    syntax,
+  );
   for (final node in markdownNodes) {
     node.accept(nodeVisitor);
   }
@@ -83,6 +94,8 @@ MutableDocument deserializeMarkdownToDocument(
 class _MarkdownToDocument implements md.NodeVisitor {
   _MarkdownToDocument([
     this._elementToNodeConverters = const [],
+    this.customInlineSyntax = const [],
+    this.inlineMarkdownToDocumentBuilder,
     this._encodeHtml = false,
     this.syntax = MarkdownSyntax.normal,
   ]);
@@ -90,6 +103,8 @@ class _MarkdownToDocument implements md.NodeVisitor {
   final MarkdownSyntax syntax;
 
   final List<ElementToNodeConverter> _elementToNodeConverters;
+  final List<md.InlineSyntax> customInlineSyntax;
+  final InlineMarkdownToDocument Function()? inlineMarkdownToDocumentBuilder;
 
   final _content = <DocumentNode>[];
   List<DocumentNode> get content => _content;
@@ -397,7 +412,7 @@ class _MarkdownToDocument implements md.NodeVisitor {
     return inlineVisitor.attributedText;
   }
 
-  _InlineMarkdownToDocument _parseInline(String text) {
+  InlineMarkdownToDocument _parseInline(String text) {
     final inlineParser = md.InlineParser(
       text,
       md.Document(
@@ -407,11 +422,13 @@ class _MarkdownToDocument implements md.NodeVisitor {
           UnderlineSyntax(),
           if (syntax == MarkdownSyntax.superEditor) //
             SuperEditorImageSyntax(),
+          ...customInlineSyntax,
         ],
         encodeHtml: _encodeHtml,
       ),
     );
-    final inlineVisitor = _InlineMarkdownToDocument();
+    final inlineVisitor =
+        inlineMarkdownToDocumentBuilder?.call() ?? InlineMarkdownToDocument();
     final inlineNodes = inlineParser.parse();
     for (final inlineNode in inlineNodes) {
       inlineNode.accept(inlineVisitor);
@@ -432,8 +449,8 @@ class _MarkdownToDocument implements md.NodeVisitor {
 /// [_InlineMarkdownToDocument] does not support parsing text
 /// that contains image tags. If any non-image text is found,
 /// the content is treated as styled text.
-class _InlineMarkdownToDocument implements md.NodeVisitor {
-  _InlineMarkdownToDocument();
+class InlineMarkdownToDocument implements md.NodeVisitor {
+  InlineMarkdownToDocument();
 
   // For our purposes, we only support block-level images. Therefore,
   // if we find an image without any text, we're parsing an image.
