@@ -49,11 +49,11 @@ class CalloutBlockSyntax extends md.BlockSyntax {
         break;
       }
 
-      childLines.add(parser.current.content);
+      childLines.add(parser.current);
       parser.advance();
     }
 
-    return childLines.map((l) => md.Line(l)).toList();
+    return childLines;
   }
 
   // This method was adapted from the standard Blockquote parser, and

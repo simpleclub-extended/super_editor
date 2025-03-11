@@ -38,10 +38,7 @@ class SuperEditorImageSyntax extends md.LinkSyntax {
     if (parser.pos + 1 >= parser.source.length) {
       // The `]` is at the end of the document, but this may still be a valid
       // shortcut reference link.
-      final link = _tryCreateReferenceLink(parser, text, getChildren: getChildren);
-      if (link != null) {
-        return [link];
-      }
+      return _tryCreateReferenceLink(parser, text, getChildren: getChildren);
     }
 
     // Peek at the next character; don't advance, so as to avoid later stepping
@@ -54,7 +51,7 @@ class SuperEditorImageSyntax extends md.LinkSyntax {
       var leftParenIndex = parser.pos;
       var inlineLink = _parseInlineLink(parser);
       if (inlineLink != null) {
-        return [ _tryCreateInlineLink(parser, inlineLink, getChildren: getChildren) ];
+        return [_tryCreateInlineLink(parser, inlineLink, getChildren: getChildren)];
       }
       // At this point, we've matched `[...](`, but that `(` did not pan out to
       // be an inline link. We must now check if `[...]` is simply a shortcut
@@ -63,10 +60,7 @@ class SuperEditorImageSyntax extends md.LinkSyntax {
       // Reset the parser position.
       parser.pos = leftParenIndex;
       parser.advanceBy(-1);
-      final link = _tryCreateReferenceLink(parser, text, getChildren: getChildren);
-      if (link != null) {
-        return [link];
-      }
+      return _tryCreateReferenceLink(parser, text, getChildren: getChildren);
     }
 
     if (char == AsciiTable.leftBracket) {
@@ -77,27 +71,18 @@ class SuperEditorImageSyntax extends md.LinkSyntax {
         // That opening `[` is not actually part of the link. Maybe a
         // *shortcut* reference link (followed by a `[`).
         parser.advanceBy(1);
-        final link = _tryCreateReferenceLink(parser, text, getChildren: getChildren);
-        if (link != null) {
-          return [link];
-        }
+        return _tryCreateReferenceLink(parser, text, getChildren: getChildren);
       }
       var label = _parseReferenceLinkLabel(parser);
       if (label != null) {
-        final link = _tryCreateReferenceLink(parser, label, getChildren: getChildren);
-        if (link != null) {
-          return [link];
-        }
+        return _tryCreateReferenceLink(parser, label, getChildren: getChildren);
       }
       return null;
     }
 
     // The link text (inside `[...]`) was not followed with a opening `(` nor
     // an opening `[`. Perhaps just a simple shortcut reference link (`[...]`).
-    final link = _tryCreateReferenceLink(parser, text, getChildren: getChildren);
-    if (link != null) {
-      return [link];
-    }
+    return _tryCreateReferenceLink(parser, text, getChildren: getChildren);
   }
 
   /// Parses a size using the notation `=widthxheight`.
@@ -251,7 +236,7 @@ class SuperEditorImageSyntax extends md.LinkSyntax {
   /// Otherwise, returns `null`.
   ///
   /// [label] does not need to be normalized.
- List<md.Node>? _resolveReferenceLink(
+  List<md.Node>? _resolveReferenceLink(
     String label,
     Map<String, md.LinkReference> linkReferences, {
     required List<md.Node> Function() getChildren,
@@ -264,7 +249,7 @@ class SuperEditorImageSyntax extends md.LinkSyntax {
           linkReference.title,
           //size: linkReference.size,
           getChildren: getChildren,
-        ) 
+        )
       ];
     } else {
       // This link has no reference definition. But we allow users of the

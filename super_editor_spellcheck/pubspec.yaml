@@ -1,4 +1,5 @@
 name: super_editor_spellcheck
+publish_to: "none"
 description: "A plugin for running spellcheck against arbitrary text."
 version: 0.0.1
 homepage:
@@ -15,8 +16,16 @@ dependencies:
   overlord: ^0.0.3+5
   plugin_platform_interface: ^2.0.2
 
-  super_editor: ^0.3.0-dev.15
-  super_text_layout: ^0.1.12
+  super_editor:
+    git:
+      url: https://github.com/simpleclub-extended/super_editor
+      path: super_editor
+      ref: simpleclub-stable
+  super_text_layout:
+    git:
+      url: https://github.com/simpleclub-extended/super_editor
+      path: super_text_layout
+      ref: simpleclub-stable
 
 dependency_overrides:
   super_editor:
