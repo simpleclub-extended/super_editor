@@ -136,7 +136,14 @@ const allTextStylesDeltaDocument = [
     "attributes": {"blockquote": true},
     "insert": "\n"
   },
+  // Notice: A multiline code block, while rendered as a single block, is
+  // encoded as independently attributed deltas.
   {"insert": "\nThis is a code block"},
+  {
+    "attributes": {"code-block": "plain"},
+    "insert": "\n"
+  },
+  {"insert": "That spans two lines."},
   {
     "attributes": {"code-block": "plain"},
     "insert": "\n"
@@ -153,7 +160,7 @@ MutableDocument createAllTextStylesSuperEditorDocument() {
       ParagraphNode(
         id: "1",
         text: AttributedText("All Text Styles"),
-        metadata: {
+        metadata: const {
           "blockType": header1Attribution,
         },
       ),
@@ -196,9 +203,9 @@ MutableDocument createAllTextStylesSuperEditorDocument() {
       ),
       ParagraphNode(id: "3", text: AttributedText("")),
       ParagraphNode(id: "4", text: AttributedText("Left aligned")),
-      ParagraphNode(id: "5", text: AttributedText("Center aligned"), metadata: {"textAlign": "center"}),
-      ParagraphNode(id: "6", text: AttributedText("Right aligned"), metadata: {"textAlign": "right"}),
-      ParagraphNode(id: "7", text: AttributedText("Justified"), metadata: {"textAlign": "justify"}),
+      ParagraphNode(id: "5", text: AttributedText("Center aligned"), metadata: const {"textAlign": "center"}),
+      ParagraphNode(id: "6", text: AttributedText("Right aligned"), metadata: const {"textAlign": "right"}),
+      ParagraphNode(id: "7", text: AttributedText("Justified"), metadata: const {"textAlign": "justify"}),
       ParagraphNode(id: "8", text: AttributedText("")),
       ListItemNode(id: "9", itemType: ListItemType.ordered, text: AttributedText("Ordered item 1")),
       ListItemNode(id: "10", itemType: ListItemType.ordered, text: AttributedText("Ordered item 2")),
@@ -283,13 +290,13 @@ MutableDocument createAllTextStylesSuperEditorDocument() {
       ParagraphNode(
         id: "28",
         text: AttributedText("This is a blockquote"),
-        metadata: {"blockType": blockquoteAttribution},
+        metadata: const {"blockType": blockquoteAttribution},
       ),
       ParagraphNode(id: "29", text: AttributedText("")),
       ParagraphNode(
         id: "30",
-        text: AttributedText("This is a code block"),
-        metadata: {"blockType": codeAttribution},
+        text: AttributedText("This is a code block\nThat spans two lines."),
+        metadata: const {"blockType": codeAttribution},
       ),
     ],
   );

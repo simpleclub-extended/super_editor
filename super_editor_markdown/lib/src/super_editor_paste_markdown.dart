@@ -40,14 +40,18 @@ Future<void> pasteMarkdown({
   required Document document,
   required DocumentComposer composer,
 }) async {
-  DocumentPosition pastePosition = composer.selection!.extent;
-
   // Delete all currently selected content.
   if (!composer.selection!.isCollapsed) {
-    pastePosition = CommonEditorOperations.getDocumentPositionAfterExpandedDeletion(
+    final pastePosition = CommonEditorOperations.getDocumentPositionAfterExpandedDeletion(
       document: document,
       selection: composer.selection!,
     );
+
+    if (pastePosition == null) {
+      // A null pastePosition means that the selection can't be deleted. This might happen
+      // when the selection contains only non-deletable nodes. Therefore, we cannot paste.
+      return;
+    }
 
     // Delete the selected content.
     editor.execute([
@@ -66,8 +70,8 @@ Future<void> pasteMarkdown({
   // Paste the structured content into the document.
   editor.execute([
     PasteStructuredContentEditorRequest(
-      content: deserializedMarkdown.nodes,
-      pastePosition: pastePosition,
+      content: deserializedMarkdown,
+      pastePosition: composer.selection!.extent,
     ),
   ]);
 }

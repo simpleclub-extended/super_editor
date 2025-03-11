@@ -1,4 +1,5 @@
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:super_editor/super_editor.dart';
 
@@ -40,7 +41,7 @@ Future<void> main() async {
 
         editor.execute([request]);
 
-        final boldedText = (document.nodes.first as ParagraphNode).text;
+        final boldedText = (document.first as ParagraphNode).text;
         expect(boldedText.getAllAttributionsAt(0), <dynamic>{});
         expect(boldedText.getAllAttributionsAt(1), {boldAttribution});
         expect(boldedText.getAllAttributionsAt(12), {boldAttribution});
@@ -239,7 +240,7 @@ Future<void> main() async {
         // The handler should insert a character
         expect(result, ExecutionInstruction.haltExecution);
         expect(
-          (editContext.document.nodes.first as TextNode).text.text,
+          (editContext.document.first as TextNode).text.toPlainText(),
           'aThis is some text',
         );
       });
@@ -283,7 +284,7 @@ Future<void> main() async {
         // The handler should insert a character
         expect(result, ExecutionInstruction.haltExecution);
         expect(
-          (editContext.document.nodes.first as TextNode).text.text,
+          (editContext.document.first as TextNode).text.toPlainText(),
           'ßThis is some text',
         );
       });
@@ -368,6 +369,7 @@ SuperEditorContext _createEditContext() {
   final documentEditor = createDefaultDocumentEditor(document: document, composer: composer);
   final fakeLayout = FakeDocumentLayout();
   return SuperEditorContext(
+    editorFocusNode: FocusNode(),
     editor: documentEditor,
     document: document,
     getDocumentLayout: () => fakeLayout,

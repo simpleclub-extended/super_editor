@@ -316,8 +316,8 @@ void main() {
           await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
 
           // Ensure that the whole word was deleted.
-          final paragraphNode = testContext.findEditContext().document.nodes.first as ParagraphNode;
-          expect(paragraphNode.text.text.startsWith("Lorem  dolor sit amet"), isTrue);
+          final paragraphNode = testContext.findEditContext().document.first as ParagraphNode;
+          expect(paragraphNode.text.toPlainText().startsWith("Lorem  dolor sit amet"), isTrue);
           expect(
             SuperEditorInspector.findDocumentSelection(),
             const DocumentSelection.collapsed(
@@ -345,8 +345,8 @@ void main() {
           await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
 
           // Ensure that the whole word was deleted.
-          final paragraphNode = testContext.findEditContext().document.nodes.first as ParagraphNode;
-          expect(paragraphNode.text.text.startsWith("Lorem dolor sit amet"), isTrue);
+          final paragraphNode = testContext.findEditContext().document.first as ParagraphNode;
+          expect(paragraphNode.text.toPlainText().startsWith("Lorem dolor sit amet"), isTrue);
           expect(
             SuperEditorInspector.findDocumentSelection(),
             const DocumentSelection.collapsed(
@@ -374,8 +374,8 @@ void main() {
           await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
 
           // Ensure that the whole word was deleted.
-          final paragraphNode = testContext.findEditContext().document.nodes.first as ParagraphNode;
-          expect(paragraphNode.text.text, startsWith("Lorem ipsum  sit amet"));
+          final paragraphNode = testContext.findEditContext().document.first as ParagraphNode;
+          expect(paragraphNode.text.toPlainText(), startsWith("Lorem ipsum  sit amet"));
           expect(
             SuperEditorInspector.findDocumentSelection(),
             const DocumentSelection.collapsed(
@@ -403,8 +403,8 @@ void main() {
           await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
 
           // Ensure that the whole word was deleted.
-          final paragraphNode = testContext.findEditContext().document.nodes.first as ParagraphNode;
-          expect(paragraphNode.text.text.startsWith("Lorem ipsum sit amet"), isTrue);
+          final paragraphNode = testContext.findEditContext().document.first as ParagraphNode;
+          expect(paragraphNode.text.toPlainText().startsWith("Lorem ipsum sit amet"), isTrue);
           expect(
             SuperEditorInspector.findDocumentSelection(),
             const DocumentSelection.collapsed(
@@ -430,8 +430,8 @@ void main() {
           await tester.pressCtlBackspace();
 
           // Ensure that a character was deleted.
-          final paragraphNode = testContext.findEditContext().document.nodes.first as ParagraphNode;
-          expect(paragraphNode.text.text, startsWith("Lorem ipsu dolor sit amet"));
+          final paragraphNode = testContext.findEditContext().document.first as ParagraphNode;
+          expect(paragraphNode.text.toPlainText(), startsWith("Lorem ipsu dolor sit amet"));
           expect(
             SuperEditorInspector.findDocumentSelection(),
             const DocumentSelection.collapsed(
@@ -459,8 +459,8 @@ void main() {
           await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
 
           // Ensure that a character was deleted.
-          final paragraphNode = testContext.findEditContext().document.nodes.first as ParagraphNode;
-          expect(paragraphNode.text.text.startsWith("Lorem ipsumdolor sit amet"), isTrue);
+          final paragraphNode = testContext.findEditContext().document.first as ParagraphNode;
+          expect(paragraphNode.text.toPlainText().startsWith("Lorem ipsumdolor sit amet"), isTrue);
           expect(
             SuperEditorInspector.findDocumentSelection(),
             const DocumentSelection.collapsed(
@@ -471,6 +471,180 @@ void main() {
             ),
           );
         }, variant: inputSourceVariant);
+
+        testWidgetsOnMacDesktopAndWeb('with CMD + LEFT ARROW at the beginning of a paragraph', (tester) async {
+          await tester //
+              .createDocument()
+              .withLongTextContent()
+              .pump();
+
+          // Place caret at the beginning of the second paragraph.
+          await tester.placeCaretInParagraph('2', 0);
+
+          // Press the key combo to move to the beginning of the line.
+          await tester.pressCmdLeftArrow();
+
+          // Ensure that the caret didn't move, since we are already at the beginning.
+          expect(
+            SuperEditorInspector.findDocumentSelection(),
+            selectionEquivalentTo(
+              const DocumentSelection.collapsed(
+                position: DocumentPosition(
+                  nodeId: "2",
+                  nodePosition: TextNodePosition(offset: 0),
+                ),
+              ),
+            ),
+          );
+        });
+
+        testWidgetsOnMacDesktopAndWeb('with CMD + RIGHT ARROW at the end of a paragraph', (tester) async {
+          await tester //
+              .createDocument()
+              .withLongTextContent()
+              .pump();
+
+          // Place caret at the end of the first paragraph.
+          await tester.placeCaretInParagraph('1', 439);
+
+          // Press the key combo to move to the end of the line.
+          await tester.pressCmdRightArrow();
+
+          // Ensure that the caret didn't move, since we are already at the end.
+          expect(
+            SuperEditorInspector.findDocumentSelection(),
+            selectionEquivalentTo(
+              const DocumentSelection.collapsed(
+                position: DocumentPosition(
+                  nodeId: "1",
+                  nodePosition: TextNodePosition(offset: 439),
+                ),
+              ),
+            ),
+          );
+        });
+
+        testWidgetsOnMacDesktopAndWeb(
+            'SHIFT + OPTION + LEFT ARROW: deselects word at end of line after selecting the whole line from start to end',
+            (tester) async {
+          await tester //
+              .createDocument()
+              .withCustomContent(
+                MutableDocument(
+                  nodes: [
+                    ParagraphNode(
+                      id: '1',
+                      text: AttributedText('This is a paragraph'),
+                    ),
+                  ],
+                ),
+              )
+              .pump();
+
+          // Place caret at the beginning of the paragraph.
+          await tester.placeCaretInParagraph('1', 0);
+
+          // Press CMD + SHIFT + RIGHT ARROW to expand the selection to the end of the line.
+          await tester.pressShiftCmdRightArrow();
+
+          // Ensure that the whole line is selected.
+          expect(
+            SuperEditorInspector.findDocumentSelection(),
+            selectionEquivalentTo(
+              const DocumentSelection(
+                base: DocumentPosition(
+                  nodeId: "1",
+                  nodePosition: TextNodePosition(offset: 0),
+                ),
+                extent: DocumentPosition(
+                  nodeId: "1",
+                  nodePosition: TextNodePosition(offset: 19),
+                ),
+              ),
+            ),
+          );
+
+          // Press SHIFT + OPTION + LEFT ARROW to remove the last word from the selection.
+          await tester.pressShiftAltLeftArrow();
+
+          // Ensure that the last word was removed from the selection.
+          expect(
+            SuperEditorInspector.findDocumentSelection(),
+            selectionEquivalentTo(
+              const DocumentSelection(
+                base: DocumentPosition(
+                  nodeId: "1",
+                  nodePosition: TextNodePosition(offset: 0),
+                ),
+                extent: DocumentPosition(
+                  nodeId: "1",
+                  nodePosition: TextNodePosition(offset: 10),
+                ),
+              ),
+            ),
+          );
+        });
+
+        testWidgetsOnMacDesktopAndWeb(
+            'SHIFT + OPTION + RIGHT ARROW: deselects word at start of line after selecting the whole line from end to start',
+            (tester) async {
+          await tester //
+              .createDocument()
+              .withCustomContent(
+                MutableDocument(
+                  nodes: [
+                    ParagraphNode(
+                      id: '1',
+                      text: AttributedText('This is a paragraph'),
+                    ),
+                  ],
+                ),
+              )
+              .pump();
+
+          // Place caret at the end of the paragraph.
+          await tester.placeCaretInParagraph('1', 19);
+
+          // Press CMD + SHIFT + LEFT ARROW to expand the selection to the beginning of the line.
+          await tester.pressShiftCmdLeftArrow();
+
+          // Ensure that the whole line is selected.
+          expect(
+            SuperEditorInspector.findDocumentSelection(),
+            selectionEquivalentTo(
+              const DocumentSelection(
+                base: DocumentPosition(
+                  nodeId: "1",
+                  nodePosition: TextNodePosition(offset: 19),
+                ),
+                extent: DocumentPosition(
+                  nodeId: "1",
+                  nodePosition: TextNodePosition(offset: 0),
+                ),
+              ),
+            ),
+          );
+
+          // Press SHIFT + OPTION + RIGHT ARROW to remove the first word from the selection.
+          await tester.pressShiftAltRightArrow();
+
+          // Ensure that the first word was removed from the selection.
+          expect(
+            SuperEditorInspector.findDocumentSelection(),
+            selectionEquivalentTo(
+              const DocumentSelection(
+                base: DocumentPosition(
+                  nodeId: "1",
+                  nodePosition: TextNodePosition(offset: 19),
+                ),
+                extent: DocumentPosition(
+                  nodeId: "1",
+                  nodePosition: TextNodePosition(offset: 4),
+                ),
+              ),
+            ),
+          );
+        });
       });
 
       group("Windows and Linux >", () {
@@ -618,8 +792,8 @@ void main() {
           await tester.pressCtlBackspace();
 
           // Ensure that the whole word was deleted.
-          final paragraphNode = testContext.findEditContext().document.nodes.first as ParagraphNode;
-          expect(paragraphNode.text.text.startsWith("Lorem  dolor sit amet"), isTrue);
+          final paragraphNode = testContext.findEditContext().document.first as ParagraphNode;
+          expect(paragraphNode.text.toPlainText().startsWith("Lorem  dolor sit amet"), isTrue);
           expect(
             SuperEditorInspector.findDocumentSelection(),
             const DocumentSelection.collapsed(
@@ -645,8 +819,8 @@ void main() {
           await tester.pressCtlBackspace();
 
           // Ensure that the whole word was deleted.
-          final paragraphNode = testContext.findEditContext().document.nodes.first as ParagraphNode;
-          expect(paragraphNode.text.text.startsWith("Lorem dolor sit amet"), isTrue);
+          final paragraphNode = testContext.findEditContext().document.first as ParagraphNode;
+          expect(paragraphNode.text.toPlainText().startsWith("Lorem dolor sit amet"), isTrue);
           expect(
             SuperEditorInspector.findDocumentSelection(),
             const DocumentSelection.collapsed(
@@ -674,8 +848,8 @@ void main() {
           await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
 
           // Ensure that the whole word was deleted.
-          final paragraphNode = testContext.findEditContext().document.nodes.first as ParagraphNode;
-          expect(paragraphNode.text.text, startsWith("Lorem ipsum  sit amet"));
+          final paragraphNode = testContext.findEditContext().document.first as ParagraphNode;
+          expect(paragraphNode.text.toPlainText(), startsWith("Lorem ipsum  sit amet"));
           expect(
             SuperEditorInspector.findDocumentSelection(),
             const DocumentSelection.collapsed(
@@ -703,8 +877,8 @@ void main() {
           await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
 
           // Ensure that the whole word was deleted.
-          final paragraphNode = testContext.findEditContext().document.nodes.first as ParagraphNode;
-          expect(paragraphNode.text.text.startsWith("Lorem ipsum sit amet"), isTrue);
+          final paragraphNode = testContext.findEditContext().document.first as ParagraphNode;
+          expect(paragraphNode.text.toPlainText().startsWith("Lorem ipsum sit amet"), isTrue);
           expect(
             SuperEditorInspector.findDocumentSelection(),
             const DocumentSelection.collapsed(
@@ -730,8 +904,8 @@ void main() {
           await tester.pressAltBackspace();
 
           // Ensure that nothing changed.
-          final paragraphNode = testContext.findEditContext().document.nodes.first as ParagraphNode;
-          expect(paragraphNode.text.text, startsWith("Lorem ipsu dolor sit amet"));
+          final paragraphNode = testContext.findEditContext().document.first as ParagraphNode;
+          expect(paragraphNode.text.toPlainText(), startsWith("Lorem ipsu dolor sit amet"));
           expect(
             SuperEditorInspector.findDocumentSelection(),
             const DocumentSelection.collapsed(
@@ -759,8 +933,8 @@ void main() {
           await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
 
           // Ensure that nothing changed.
-          final paragraphNode = testContext.findEditContext().document.nodes.first as ParagraphNode;
-          expect(paragraphNode.text.text, startsWith("Lorem ipsumdolor sit amet"));
+          final paragraphNode = testContext.findEditContext().document.first as ParagraphNode;
+          expect(paragraphNode.text.toPlainText(), startsWith("Lorem ipsumdolor sit amet"));
           expect(
             SuperEditorInspector.findDocumentSelection(),
             const DocumentSelection.collapsed(
@@ -782,19 +956,19 @@ void main() {
               .withInputSource(inputSourceVariant.currentValue!)
               .pump();
 
-          final node = testContext.findEditContext().document.nodes.first;
+          final document = testContext.document;
 
           // Place caret at "A| header"
-          await tester.placeCaretInParagraph(node.id, 1);
+          await tester.placeCaretInParagraph(document.first.id, 1);
 
           // Delete "A".
           await tester.pressBackspace();
 
           // Ensure the first character was deleted.
-          expect((node as TextNode).text.text, ' header');
+          expect(document.first.asTextNode.text.toPlainText(), ' header');
 
           // Ensure the node is still a header.
-          expect(node.getMetadataValue("blockType"), header1Attribution);
+          expect(document.first.getMetadataValue("blockType"), header1Attribution);
         },
         variant: inputSourceVariant,
       );
@@ -808,19 +982,19 @@ void main() {
               .withInputSource(inputSourceVariant.currentValue!)
               .pump();
 
-          final node = testContext.findEditContext().document.nodes.first;
+          final document = testContext.document;
 
           // Place caret at the start of the header.
-          await tester.placeCaretInParagraph(node.id, 0);
+          await tester.placeCaretInParagraph(document.first.id, 0);
 
           // Press backspace to clear the metadata.
           await tester.pressBackspace();
 
           // Ensure the text remains the same.
-          expect((node as TextNode).text.text, 'A header');
+          expect(document.first.asTextNode.text.toPlainText(), 'A header');
 
           // Ensure the header was converted to a paragraph.
-          expect(node.getMetadataValue("blockType"), paragraphAttribution);
+          expect(document.first.getMetadataValue("blockType"), paragraphAttribution);
         },
         variant: inputSourceVariant,
       );
@@ -836,7 +1010,7 @@ Second paragraph''') //
               .pump();
 
           // Place caret at "First para|graph".
-          await tester.placeCaretInParagraph(context.document.nodes.first.id, 10);
+          await tester.placeCaretInParagraph(context.document.first.id, 10);
 
           // Press DOWN arrow to move the caret to the downstream paragraph.
           await tester.pressDownArrow();
@@ -847,7 +1021,7 @@ Second paragraph''') //
             selectionEquivalentTo(
               DocumentSelection.collapsed(
                 position: DocumentPosition(
-                  nodeId: context.document.nodes.last.id,
+                  nodeId: context.document.last.id,
                   nodePosition: const TextNodePosition(offset: 10),
                 ),
               ),
@@ -904,7 +1078,7 @@ This is a paragraph
               .pump();
 
           // Place the caret at "This is a |paragraph".
-          await tester.placeCaretInParagraph(context.document.nodes.first.id, 10);
+          await tester.placeCaretInParagraph(context.document.first.id, 10);
 
           // Press DOWN arrow to move the caret to the downstream node.
           //
@@ -923,7 +1097,7 @@ This is a paragraph
             selectionEquivalentTo(
               DocumentSelection.collapsed(
                 position: DocumentPosition(
-                  nodeId: context.document.nodes.last.id,
+                  nodeId: context.document.last.id,
                   nodePosition: const TextNodePosition(offset: 8),
                 ),
               ),
@@ -1058,7 +1232,7 @@ This is a paragraph''') //
               .pump();
 
           // Place caret at "This is |a list item".
-          await tester.placeCaretInParagraph(context.document.nodes.first.id, 8);
+          await tester.placeCaretInParagraph(context.document.first.id, 8);
 
           // Press DOWN arrow to move the caret to the downstream node.
           //
@@ -1077,7 +1251,7 @@ This is a paragraph''') //
             selectionEquivalentTo(
               DocumentSelection.collapsed(
                 position: DocumentPosition(
-                  nodeId: context.document.nodes.last.id,
+                  nodeId: context.document.last.id,
                   nodePosition: const TextNodePosition(offset: 10),
                 ),
               ),
@@ -1134,7 +1308,7 @@ This is a paragraph''') //
               .pump();
 
           // Place the caret at "This is a|nother list item".
-          await tester.placeCaretInParagraph(context.document.nodes.first.id, 9);
+          await tester.placeCaretInParagraph(context.document.first.id, 9);
 
           // Press down arrow to move the caret to the downstream node.
           //
@@ -1153,7 +1327,7 @@ This is a paragraph''') //
             selectionEquivalentTo(
               DocumentSelection.collapsed(
                 position: DocumentPosition(
-                  nodeId: context.document.nodes.last.id,
+                  nodeId: context.document.last.id,
                   nodePosition: const TextNodePosition(offset: 9),
                 ),
               ),
@@ -1173,7 +1347,7 @@ Second paragraph''') //
               .pump();
 
           // Place caret at "Second p|aragraph".
-          await tester.placeCaretInParagraph(context.document.nodes.last.id, 8);
+          await tester.placeCaretInParagraph(context.document.last.id, 8);
 
           // Press UP arrow to move the caret to the upstream paragraph.
           await tester.pressUpArrow();
@@ -1184,7 +1358,7 @@ Second paragraph''') //
             selectionEquivalentTo(
               DocumentSelection.collapsed(
                 position: DocumentPosition(
-                  nodeId: context.document.nodes.first.id,
+                  nodeId: context.document.first.id,
                   nodePosition: const TextNodePosition(offset: 10),
                 ),
               ),
@@ -1241,7 +1415,7 @@ This is a paragraph''') //
               .pump();
 
           // Place the caret at "This is a |paragraph".
-          await tester.placeCaretInParagraph(context.document.nodes.last.id, 10);
+          await tester.placeCaretInParagraph(context.document.last.id, 10);
 
           // Press UP arrow to move the caret to the upstream node.
           //
@@ -1260,7 +1434,7 @@ This is a paragraph''') //
             selectionEquivalentTo(
               DocumentSelection.collapsed(
                 position: DocumentPosition(
-                  nodeId: context.document.nodes.first.id,
+                  nodeId: context.document.first.id,
                   nodePosition: const TextNodePosition(offset: 8),
                 ),
               ),
@@ -1395,7 +1569,7 @@ This is a paragraph
               .pump();
 
           // Place caret at "This is |a list item".
-          await tester.placeCaretInParagraph(context.document.nodes.last.id, 8);
+          await tester.placeCaretInParagraph(context.document.last.id, 8);
 
           // Press UP arrow to move the caret to the upstream node.
           //
@@ -1414,7 +1588,7 @@ This is a paragraph
             selectionEquivalentTo(
               DocumentSelection.collapsed(
                 position: DocumentPosition(
-                  nodeId: context.document.nodes.first.id,
+                  nodeId: context.document.first.id,
                   nodePosition: const TextNodePosition(offset: 10),
                 ),
               ),
@@ -1471,7 +1645,7 @@ This is a paragraph
               .pump();
 
           // Place the caret at "This is a|nother list item".
-          await tester.placeCaretInParagraph(context.document.nodes.last.id, 9);
+          await tester.placeCaretInParagraph(context.document.last.id, 9);
 
           // Press UP arrow to move the caret to the upstream node.
           //
@@ -1490,7 +1664,7 @@ This is a paragraph
             selectionEquivalentTo(
               DocumentSelection.collapsed(
                 position: DocumentPosition(
-                  nodeId: context.document.nodes.first.id,
+                  nodeId: context.document.first.id,
                   nodePosition: const TextNodePosition(offset: 9),
                 ),
               ),
@@ -1957,7 +2131,7 @@ This is a paragraph
         await tester.pressBackspace();
 
         // Ensure the selected content was deleted.
-        expect(SuperEditorInspector.findTextInComponent("1").text, "Text with [] selection");
+        expect(SuperEditorInspector.findTextInComponent("1").toPlainText(), "Text with [] selection");
         expect(
           SuperEditorInspector.findDocumentSelection(),
           const DocumentSelection.collapsed(
@@ -2005,7 +2179,7 @@ This is a paragraph
         await tester.pressDelete();
 
         // Ensure the selected content was deleted.
-        expect(SuperEditorInspector.findTextInComponent("1").text, "Text with [] selection");
+        expect(SuperEditorInspector.findTextInComponent("1").toPlainText(), "Text with [] selection");
         expect(
           SuperEditorInspector.findDocumentSelection(),
           const DocumentSelection.collapsed(
@@ -2054,7 +2228,7 @@ This is a paragraph
         await tester.typeKeyboardText("a");
 
         // Ensure the selected content was deleted.
-        expect(SuperEditorInspector.findTextInComponent("1").text, "Text with [a] selection");
+        expect(SuperEditorInspector.findTextInComponent("1").toPlainText(), "Text with [a] selection");
         expect(
           SuperEditorInspector.findDocumentSelection(),
           const DocumentSelection.collapsed(
@@ -2102,7 +2276,7 @@ This is a paragraph
         await tester.pressEscape();
 
         // Ensure the selected content was deleted.
-        expect(SuperEditorInspector.findTextInComponent("1").text, "Text with [SELECTME] selection");
+        expect(SuperEditorInspector.findTextInComponent("1").toPlainText(), "Text with [SELECTME] selection");
         expect(
           SuperEditorInspector.findDocumentSelection(),
           const DocumentSelection.collapsed(
@@ -2136,7 +2310,7 @@ This is a paragraph
       await tester.pressEscape();
 
       // Ensure that nothing changed.
-      expect(SuperEditorInspector.findTextInComponent("1").text, "This is some text");
+      expect(SuperEditorInspector.findTextInComponent("1").toPlainText(), "This is some text");
       expect(
         SuperEditorInspector.findDocumentSelection(),
         const DocumentSelection.collapsed(
@@ -2524,9 +2698,7 @@ Future<TestDocumentContext> _pumpPageScrollSliverTestSetup(
                 ),
                 expandedHeight: 200.0,
               ),
-              SliverToBoxAdapter(
-                child: superEditor,
-              ),
+              superEditor,
               SliverList(
                 delegate: SliverChildBuilderDelegate(
                   (BuildContext context, int index) {
@@ -2557,8 +2729,6 @@ Future<void> _pumpEditorWithTaskComponent(
       home: Scaffold(
         body: SuperEditor(
           editor: editor,
-          document: document,
-          composer: composer,
           componentBuilders: [
             TaskComponentBuilder(editor),
             ...defaultComponentBuilders,

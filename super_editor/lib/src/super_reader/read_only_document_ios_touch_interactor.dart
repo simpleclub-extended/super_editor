@@ -13,6 +13,7 @@ import 'package:super_editor/src/infrastructure/_logging.dart';
 import 'package:super_editor/src/infrastructure/content_layers.dart';
 import 'package:super_editor/src/infrastructure/document_gestures.dart';
 import 'package:super_editor/src/infrastructure/document_gestures_interaction_overrides.dart';
+import 'package:super_editor/src/infrastructure/flutter/eager_pan_gesture_recognizer.dart';
 import 'package:super_editor/src/infrastructure/flutter/build_context.dart';
 import 'package:super_editor/src/infrastructure/flutter/flutter_scheduler.dart';
 import 'package:super_editor/src/infrastructure/multi_tap_gesture.dart';
@@ -21,6 +22,7 @@ import 'package:super_editor/src/infrastructure/platforms/ios/long_press_selecti
 import 'package:super_editor/src/infrastructure/platforms/ios/magnifier.dart';
 import 'package:super_editor/src/infrastructure/platforms/mobile_documents.dart';
 import 'package:super_editor/src/infrastructure/platforms/platform.dart';
+import 'package:super_editor/src/infrastructure/sliver_hybrid_stack.dart';
 import 'package:super_editor/src/infrastructure/touch_controls.dart';
 import 'package:super_editor/src/super_reader/reader_context.dart';
 import 'package:super_editor/src/super_reader/super_reader.dart';
@@ -191,10 +193,11 @@ class SuperReaderIosDocumentTouchInteractor extends StatefulWidget {
     required this.getDocumentLayout,
     required this.selection,
     required this.scrollController,
+    required this.fillViewport,
     this.contentTapHandler,
     this.dragAutoScrollBoundary = const AxisOffset.symmetric(54),
     this.showDebugPaint = false,
-    this.child,
+    required this.child,
   }) : super(key: key);
 
   final FocusNode focusNode;
@@ -217,9 +220,13 @@ class SuperReaderIosDocumentTouchInteractor extends StatefulWidget {
   /// edges.
   final AxisOffset dragAutoScrollBoundary;
 
+  /// Whether the document gesture detector should fill the entire viewport
+  /// even if the actual content is smaller.
+  final bool fillViewport;
+
   final bool showDebugPaint;
 
-  final Widget? child;
+  final Widget child;
 
   @override
   State createState() => _SuperReaderIosDocumentTouchInteractorState();
@@ -229,9 +236,6 @@ class _SuperReaderIosDocumentTouchInteractorState extends State<SuperReaderIosDo
     with WidgetsBindingObserver, SingleTickerProviderStateMixin {
   // The ScrollPosition attached to the _ancestorScrollable.
   ScrollPosition? _ancestorScrollPosition;
-  // The actual ScrollPosition that's used for the document layout, either
-  // the Scrollable installed by this interactor, or an ancestor Scrollable.
-  ScrollPosition? _activeScrollPosition;
 
   SuperReaderIosControlsController? _controlsController;
 
@@ -243,6 +247,7 @@ class _SuperReaderIosDocumentTouchInteractorState extends State<SuperReaderIosDo
   Offset? _globalDragOffset;
   Offset? _dragEndInInteractor;
   DragMode? _dragMode;
+
   // TODO: HandleType is the wrong type here, we need collapsed/base/extent,
   //       not collapsed/upstream/downstream. Change the type once it's working.
   HandleType? _dragHandleType;
@@ -254,8 +259,7 @@ class _SuperReaderIosDocumentTouchInteractorState extends State<SuperReaderIosDo
   bool get _isLongPressInProgress => _longPressStrategy != null;
   IosLongPressSelectionStrategy? _longPressStrategy;
 
-  /// Holds the drag gesture that scrolls the document.
-  Drag? _scrollingDrag;
+  final _interactor = GlobalKey();
 
   @override
   void initState() {
@@ -286,23 +290,6 @@ class _SuperReaderIosDocumentTouchInteractorState extends State<SuperReaderIosDo
     _controlsController = SuperReaderIosControlsScope.rootOf(context);
 
     _ancestorScrollPosition = context.findAncestorScrollableWithVerticalScroll?.position;
-
-    // On the next frame, check if our active scroll position changed to a
-    // different instance. If it did, move our listener to the new one.
-    //
-    // This is posted to the next frame because the first time this method
-    // runs, we haven't attached to our own ScrollController yet, so
-    // this.scrollPosition might be null.
-    onNextFrame((_) {
-      final newScrollPosition = scrollPosition;
-      if (newScrollPosition == _activeScrollPosition) {
-        return;
-      }
-
-      setState(() {
-        _activeScrollPosition = newScrollPosition;
-      });
-    });
   }
 
   @override
@@ -413,16 +400,15 @@ class _SuperReaderIosDocumentTouchInteractorState extends State<SuperReaderIosDo
   /// If this widget doesn't have an ancestor `Scrollable`, then this
   /// widget includes a `ScrollView` and this `State`'s render object
   /// is the viewport `RenderBox`.
-  RenderBox get viewportBox =>
-      (context.findAncestorScrollableWithVerticalScroll?.context.findRenderObject() ?? context.findRenderObject())
-          as RenderBox;
+  RenderBox get viewportBox => context.findViewportBox();
 
-  RenderBox get interactorBox => context.findRenderObject() as RenderBox;
+  /// Returns the render box for the interactor gesture detector.
+  RenderBox get interactorBox => _interactor.currentContext!.findRenderObject() as RenderBox;
 
   /// Converts the given [interactorOffset] from the [DocumentInteractor]'s coordinate
   /// space to the [DocumentLayout]'s coordinate space.
   Offset _interactorOffsetToDocumentOffset(Offset interactorOffset) {
-    final globalOffset = (context.findRenderObject() as RenderBox).localToGlobal(interactorOffset);
+    final globalOffset = interactorBox.localToGlobal(interactorOffset);
     return _docLayout.getDocumentOffsetFromAncestorOffset(globalOffset);
   }
 
@@ -514,11 +500,15 @@ class _SuperReaderIosDocumentTouchInteractorState extends State<SuperReaderIosDo
     readerGesturesLog.info("Tap down on document");
     final docOffset = _interactorOffsetToDocumentOffset(details.localPosition);
     readerGesturesLog.fine(" - document offset: $docOffset");
-    final docPosition = _docLayout.getDocumentPositionNearestToOffset(docOffset);
-    readerGesturesLog.fine(" - tapped document position: $docPosition");
 
-    if (widget.contentTapHandler != null && docPosition != null) {
-      final result = widget.contentTapHandler!.onTap(docPosition);
+    if (widget.contentTapHandler != null) {
+      final result = widget.contentTapHandler!.onTap(
+        DocumentTapDetails(
+          documentLayout: _docLayout,
+          layoutOffset: docOffset,
+          globalOffset: details.globalPosition,
+        ),
+      );
       if (result == TapHandlingInstruction.halt) {
         // The custom tap handler doesn't want us to react at all
         // to the tap.
@@ -526,6 +516,8 @@ class _SuperReaderIosDocumentTouchInteractorState extends State<SuperReaderIosDo
       }
     }
 
+    final docPosition = _docLayout.getDocumentPositionNearestToOffset(docOffset);
+    readerGesturesLog.fine(" - tapped document position: $docPosition");
     if (docPosition != null &&
         selection != null &&
         !selection.isCollapsed &&
@@ -552,11 +544,15 @@ class _SuperReaderIosDocumentTouchInteractorState extends State<SuperReaderIosDo
     readerGesturesLog.info("Double tap down on document");
     final docOffset = _interactorOffsetToDocumentOffset(details.localPosition);
     readerGesturesLog.fine(" - document offset: $docOffset");
-    final docPosition = _docLayout.getDocumentPositionNearestToOffset(docOffset);
-    readerGesturesLog.fine(" - tapped document position: $docPosition");
 
-    if (docPosition != null && widget.contentTapHandler != null) {
-      final result = widget.contentTapHandler!.onDoubleTap(docPosition);
+    if (widget.contentTapHandler != null) {
+      final result = widget.contentTapHandler!.onDoubleTap(
+        DocumentTapDetails(
+          documentLayout: _docLayout,
+          layoutOffset: docOffset,
+          globalOffset: details.globalPosition,
+        ),
+      );
       if (result == TapHandlingInstruction.halt) {
         // The custom tap handler doesn't want us to react at all
         // to the tap.
@@ -566,6 +562,8 @@ class _SuperReaderIosDocumentTouchInteractorState extends State<SuperReaderIosDo
 
     widget.selection.value = null;
 
+    final docPosition = _docLayout.getDocumentPositionNearestToOffset(docOffset);
+    readerGesturesLog.fine(" - tapped document position: $docPosition");
     if (docPosition != null) {
       final tappedComponent = _docLayout.getComponentByNodeId(docPosition.nodeId)!;
       if (!tappedComponent.isVisualSelectionSupported()) {
@@ -600,11 +598,15 @@ class _SuperReaderIosDocumentTouchInteractorState extends State<SuperReaderIosDo
 
     final docOffset = _interactorOffsetToDocumentOffset(details.localPosition);
     readerGesturesLog.fine(" - document offset: $docOffset");
-    final docPosition = _docLayout.getDocumentPositionNearestToOffset(docOffset);
-    readerGesturesLog.fine(" - tapped document position: $docPosition");
 
-    if (docPosition != null && widget.contentTapHandler != null) {
-      final result = widget.contentTapHandler!.onTripleTap(docPosition);
+    if (widget.contentTapHandler != null) {
+      final result = widget.contentTapHandler!.onTripleTap(
+        DocumentTapDetails(
+          documentLayout: _docLayout,
+          layoutOffset: docOffset,
+          globalOffset: details.globalPosition,
+        ),
+      );
       if (result == TapHandlingInstruction.halt) {
         // The custom tap handler doesn't want us to react at all
         // to the tap.
@@ -614,6 +616,8 @@ class _SuperReaderIosDocumentTouchInteractorState extends State<SuperReaderIosDo
 
     widget.selection.value = null;
 
+    final docPosition = _docLayout.getDocumentPositionNearestToOffset(docOffset);
+    readerGesturesLog.fine(" - tapped document position: $docPosition");
     if (docPosition != null) {
       final tappedComponent = _docLayout.getComponentByNodeId(docPosition.nodeId)!;
       if (!tappedComponent.isVisualSelectionSupported()) {
@@ -652,8 +656,6 @@ class _SuperReaderIosDocumentTouchInteractorState extends State<SuperReaderIosDo
     //       bit of slop might be the problem.
     final selection = widget.selection.value;
     if (selection == null) {
-      // There isn't a selection, the user is dragging to scroll the document.
-      _startDragScrolling(details);
       return;
     }
 
@@ -668,39 +670,12 @@ class _SuperReaderIosDocumentTouchInteractorState extends State<SuperReaderIosDo
       _dragMode = DragMode.extent;
       _dragHandleType = HandleType.downstream;
     } else {
-      // The user isn't dragging over a handle.
-      // Start scrolling the document.
-      _startDragScrolling(details);
       return;
     }
 
     _controlsController!.hideToolbar();
 
-    _globalStartDragOffset = details.globalPosition;
-    final interactorBox = context.findRenderObject() as RenderBox;
-    final handleOffsetInInteractor = interactorBox.globalToLocal(details.globalPosition);
-    _dragStartInDoc = _interactorOffsetToDocumentOffset(handleOffsetInInteractor);
-
-    if (_dragHandleType != null) {
-      _startDragPositionOffset = _docLayout
-          .getRectForPosition(
-            _dragHandleType! == HandleType.upstream ? selection.base : selection.extent,
-          )!
-          .center;
-    } else {
-      // User is long-press dragging, which is why there's no drag handle type.
-      // In this case, the start drag offset is wherever the user touched.
-      _startDragPositionOffset = _dragStartInDoc!;
-    }
-
-    // We need to record the scroll offset at the beginning of
-    // a drag for the case that this interactor is embedded
-    // within an ancestor Scrollable. We need to use this value
-    // to calculate a scroll delta on every scroll frame to
-    // account for the fact that this interactor is moving within
-    // the ancestor scrollable, despite the fact that the user's
-    // finger/mouse position hasn't changed.
-    _dragStartScrollOffset = scrollPosition.pixels;
+    _updateDragStartLocation(details.globalPosition);
 
     _handleAutoScrolling.startAutoScrollHandleMonitoring();
 
@@ -738,16 +713,9 @@ class _SuperReaderIosDocumentTouchInteractorState extends State<SuperReaderIosDo
   }
 
   void _onPanUpdate(DragUpdateDetails details) {
-    if (_dragMode == DragMode.scroll) {
-      // The user is trying to scroll the document. Scroll it, accordingly.
-      _scrollingDrag!.update(details);
-      return;
-    }
-
     // The user is dragging a handle. Update the document selection, and
     // auto-scroll, if needed.
     _globalDragOffset = details.globalPosition;
-    final interactorBox = context.findRenderObject() as RenderBox;
     _dragEndInInteractor = interactorBox.globalToLocal(details.globalPosition);
     final dragEndInViewport = _interactorOffsetInViewport(_dragEndInInteractor!);
 
@@ -795,34 +763,10 @@ class _SuperReaderIosDocumentTouchInteractorState extends State<SuperReaderIosDo
 
   void _onPanEnd(DragEndDetails details) {
     scrollPosition.removeListener(_onAutoScrollChange);
-
-    if (_scrollingDrag != null) {
-      // The user was performing a drag gesture to scroll the document.
-      // End the scroll activity and let the document scrolling with momentum.
-      _scrollingDrag!.end(details);
-      _scrollingDrag = null;
-      _dragMode = null;
-      return;
-    }
-
-    if (_dragMode != null) {
-      // The user was dragging a selection change in some way, either with handles
-      // or with a long-press. Finish that interaction.
-      _onDragSelectionEnd();
-    }
   }
 
   void _onPanCancel() {
     scrollPosition.removeListener(_onAutoScrollChange);
-
-    if (_scrollingDrag != null) {
-      // The user was performing a drag gesture to scroll the document.
-      // Cancel the drag gesture.
-      _scrollingDrag!.cancel();
-      _scrollingDrag = null;
-      _dragMode = null;
-      return;
-    }
 
     if (_dragMode != null) {
       _onDragSelectionEnd();
@@ -887,6 +831,11 @@ class _SuperReaderIosDocumentTouchInteractorState extends State<SuperReaderIosDo
       return;
     }
 
+    if (_dragHandleType == null) {
+      // The user is probably doing a long-press drag. Nothing for us to do here.
+      return;
+    }
+
     late DocumentPosition basePosition;
     late DocumentPosition extentPosition;
     switch (_dragHandleType!) {
@@ -916,17 +865,6 @@ class _SuperReaderIosDocumentTouchInteractorState extends State<SuperReaderIosDo
     }
   }
 
-  /// Starts a drag activity to scroll the document.
-  void _startDragScrolling(DragStartDetails details) {
-    _dragMode = DragMode.scroll;
-
-    _scrollingDrag = scrollPosition.drag(details, () {
-      // Allows receiving touches while scrolling due to scroll momentum.
-      // This is needed to allow the user to stop scrolling by tapping down.
-      scrollPosition.context.setIgnorePointer(false);
-    });
-  }
-
   /// Updates the magnifier focal point in relation to the current drag position.
   void _placeFocalPointNearTouchOffset() {
     late DocumentPosition? docPositionToMagnify;
@@ -949,6 +887,34 @@ class _SuperReaderIosDocumentTouchInteractorState extends State<SuperReaderIosDo
     _magnifierFocalPoint.value = centerOfContentAtOffset;
   }
 
+  void _updateDragStartLocation(Offset globalOffset) {
+    _globalStartDragOffset = globalOffset;
+    final handleOffsetInInteractor = interactorBox.globalToLocal(globalOffset);
+    _dragStartInDoc = _interactorOffsetToDocumentOffset(handleOffsetInInteractor);
+
+    final selection = widget.selection.value;
+    if (_dragHandleType != null && selection != null) {
+      _startDragPositionOffset = _docLayout
+          .getRectForPosition(
+            _dragHandleType! == HandleType.upstream ? selection.base : selection.extent,
+          )!
+          .center;
+    } else {
+      // User is long-press dragging, which is why there's no drag handle type.
+      // In this case, the start drag offset is wherever the user touched.
+      _startDragPositionOffset = _dragStartInDoc!;
+    }
+
+    // We need to record the scroll offset at the beginning of
+    // a drag for the case that this interactor is embedded
+    // within an ancestor Scrollable. We need to use this value
+    // to calculate a scroll delta on every scroll frame to
+    // account for the fact that this interactor is moving within
+    // the ancestor scrollable, despite the fact that the user's
+    // finger/mouse position hasn't changed.
+    _dragStartScrollOffset = scrollPosition.pixels;
+  }
+
   @override
   Widget build(BuildContext context) {
     if (widget.scrollController.hasClients) {
@@ -959,67 +925,70 @@ class _SuperReaderIosDocumentTouchInteractorState extends State<SuperReaderIosDo
         //
         // Defer adding the listener to the next frame.
         scheduleBuildAfterBuild();
-      } else {
-        if (scrollPosition != _activeScrollPosition) {
-          _activeScrollPosition = scrollPosition;
-        }
       }
     }
 
     final gestureSettings = MediaQuery.maybeOf(context)?.gestureSettings;
-    return RawGestureDetector(
-      behavior: HitTestBehavior.opaque,
-      gestures: <Type, GestureRecognizerFactory>{
-        TapSequenceGestureRecognizer: GestureRecognizerFactoryWithHandlers<TapSequenceGestureRecognizer>(
-          () => TapSequenceGestureRecognizer(),
-          (TapSequenceGestureRecognizer recognizer) {
-            recognizer
-              ..onTapDown = _onTapDown
-              ..onTapCancel = _onTapCancel
-              ..onTapUp = _onTapUp
-              ..onDoubleTapUp = _onDoubleTapUp
-              ..onTripleTapUp = _onTripleTapUp
-              ..gestureSettings = gestureSettings;
+    // PanGestureRecognizer is above contents to have first pass at gestures, but it only accepts
+    // gestures that are over caret or handles or when a long press is in progress.
+    // TapGestureRecognizer is below contents so that it doesn't interferes with buttons and other
+    // tappable widgets.
+    return SliverHybridStack(
+      fillViewport: widget.fillViewport,
+      children: [
+        // Layer below
+        RawGestureDetector(
+          behavior: HitTestBehavior.opaque,
+          gestures: <Type, GestureRecognizerFactory>{
+            TapSequenceGestureRecognizer: GestureRecognizerFactoryWithHandlers<TapSequenceGestureRecognizer>(
+              () => TapSequenceGestureRecognizer(),
+              (TapSequenceGestureRecognizer recognizer) {
+                recognizer
+                  ..onTapDown = _onTapDown
+                  ..onTapCancel = _onTapCancel
+                  ..onTapUp = _onTapUp
+                  ..onDoubleTapUp = _onDoubleTapUp
+                  ..onTripleTapUp = _onTripleTapUp
+                  ..gestureSettings = gestureSettings;
+              },
+            ),
           },
         ),
-        // We use a combination of a VerticalDragGestureRecognizer and a HorizontalDragGestureRecognizer
-        // instead of a PanGestureRecognizer because `Scrollable` also uses a VerticalDragGestureRecognizer
-        // and we need to beat out any ancestor `Scrollable` in the gesture arena.
-        // Without the HorizontalDragGestureRecognizer, horizontal drags aren't reported here
-        // when the reader has an ancestor `Scrollable`.
-        VerticalDragGestureRecognizer: GestureRecognizerFactoryWithHandlers<VerticalDragGestureRecognizer>(
-          () => VerticalDragGestureRecognizer(),
-          (VerticalDragGestureRecognizer instance) {
-            instance
-              ..dragStartBehavior = DragStartBehavior.down
-              ..onDown = _onPanDown
-              ..onStart = _onPanStart
-              ..onUpdate = _onPanUpdate
-              ..onEnd = _onPanEnd
-              ..onCancel = _onPanCancel
-              ..gestureSettings = gestureSettings;
+        widget.child,
+        // Layer above
+        RawGestureDetector(
+          key: _interactor,
+          behavior: HitTestBehavior.translucent,
+          gestures: <Type, GestureRecognizerFactory>{
+            EagerPanGestureRecognizer: GestureRecognizerFactoryWithHandlers<EagerPanGestureRecognizer>(
+              () => EagerPanGestureRecognizer(),
+              (EagerPanGestureRecognizer instance) {
+                instance
+                  ..shouldAccept = () {
+                    if (_globalTapDownOffset == null) {
+                      return false;
+                    }
+                    final panDown = interactorBox.globalToLocal(_globalTapDownOffset!);
+                    final isOverHandle = _isOverBaseHandle(panDown) || _isOverExtentHandle(panDown);
+                    return isOverHandle || _isLongPressInProgress;
+                  }
+                  ..dragStartBehavior = DragStartBehavior.down
+                  ..onDown = _onPanDown
+                  ..onStart = _onPanStart
+                  ..onUpdate = _onPanUpdate
+                  ..onEnd = _onPanEnd
+                  ..onCancel = _onPanCancel
+                  ..gestureSettings = gestureSettings;
+              },
+            ),
           },
+          child: Stack(
+            children: [
+              _buildMagnifierFocalPoint(),
+            ],
+          ),
         ),
-        HorizontalDragGestureRecognizer: GestureRecognizerFactoryWithHandlers<HorizontalDragGestureRecognizer>(
-          () => HorizontalDragGestureRecognizer(),
-          (HorizontalDragGestureRecognizer instance) {
-            instance
-              ..dragStartBehavior = DragStartBehavior.down
-              ..onDown = _onPanDown
-              ..onStart = _onPanStart
-              ..onUpdate = _onPanUpdate
-              ..onEnd = _onPanEnd
-              ..onCancel = _onPanCancel
-              ..gestureSettings = gestureSettings;
-          },
-        ),
-      },
-      child: Stack(
-        children: [
-          widget.child ?? const SizedBox(),
-          _buildMagnifierFocalPoint(),
-        ],
-      ),
+      ],
     );
   }
 
@@ -1086,10 +1055,15 @@ class SuperReaderIosToolbarOverlayManagerState extends State<SuperReaderIosToolb
 
   @override
   Widget build(BuildContext context) {
-    return OverlayPortal(
-      controller: _overlayPortalController,
-      overlayChildBuilder: _buildToolbar,
-      child: widget.child ?? const SizedBox(),
+    return SliverHybridStack(
+      children: [
+        widget.child!,
+        OverlayPortal(
+          controller: _overlayPortalController,
+          overlayChildBuilder: _buildToolbar,
+          child: const SizedBox(),
+        ),
+      ],
     );
   }
 
@@ -1142,10 +1116,15 @@ class SuperReaderIosMagnifierOverlayManagerState extends State<SuperReaderIosMag
 
   @override
   Widget build(BuildContext context) {
-    return OverlayPortal(
-      controller: _overlayPortalController,
-      overlayChildBuilder: _buildMagnifier,
-      child: widget.child ?? const SizedBox(),
+    return SliverHybridStack(
+      children: [
+        widget.child!,
+        OverlayPortal(
+          controller: _overlayPortalController,
+          overlayChildBuilder: _buildMagnifier,
+          child: const SizedBox(),
+        ),
+      ],
     );
   }
 
@@ -1185,10 +1164,10 @@ class SuperReaderIosMagnifierOverlayManagerState extends State<SuperReaderIosMag
       magnifierKey: magnifierKey,
       show: visible,
       leaderLink: magnifierFocalPoint,
-      // The bottom of the magnifier sits above the focal point.
-      // Leave a few pixels between the bottom of the magnifier and the focal point. This
-      // value was chosen empirically.
-      offsetFromFocalPoint: const Offset(0, -20),
+      // The magnifier is centered with the focal point. Translate it so that it sits
+      // above the focal point and leave a few pixels between the bottom of the magnifier
+      // and the focal point. This value was chosen empirically.
+      offsetFromFocalPoint: Offset(0, (-defaultIosMagnifierSize.height / 2) - 20),
       handleColor: _controlsContext!.handleColor,
     );
   }

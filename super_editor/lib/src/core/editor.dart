@@ -1,8 +1,10 @@
 import 'dart:math';
 
 import 'package:attributed_text/attributed_text.dart';
+import 'package:clock/clock.dart';
 import 'package:collection/collection.dart';
 import 'package:super_editor/src/default_editor/paragraph.dart';
+import 'package:super_editor/src/default_editor/text.dart';
 import 'package:super_editor/src/infrastructure/_logging.dart';
 import 'package:uuid/uuid.dart';
 
@@ -53,8 +55,10 @@ class Editor implements RequestDispatcher {
   Editor({
     required Map<String, Editable> editables,
     List<EditRequestHandler>? requestHandlers,
+    this.historyGroupingPolicy = neverMergePolicy,
     List<EditReaction>? reactionPipeline,
     List<EditListener>? listeners,
+    this.isHistoryEnabled = false,
   })  : requestHandlers = requestHandlers ?? [],
         reactionPipeline = reactionPipeline ?? [],
         _changeListeners = listeners ?? [] {
@@ -73,8 +77,32 @@ class Editor implements RequestDispatcher {
   /// Service Locator that provides all resources that are relevant for document editing.
   late final EditContext context;
 
+  /// Whether history tracking (and undo/redo) are enabled.
+  ///
+  /// When [isHistoryEnabled] is `false`, undo/redo is disabled, calling [undo] and [redo]
+  /// will have no effect, and [history] and [future] are always empty.
+  final bool isHistoryEnabled;
+
+  /// Policies that determine when a new transaction of changes should be combined with the
+  /// previous transaction, impacting what is undone by undo.
+  final HistoryGroupingPolicy historyGroupingPolicy;
+
   /// Executes [EditCommand]s and collects a list of changes.
   late final _DocumentEditorCommandExecutor _commandExecutor;
+
+  /// A list of editor transactions that were run previously, leading to the current
+  /// state of the document, and other editables.
+  List<CommandTransaction> get history => List.from(_history);
+  final _history = <CommandTransaction>[];
+
+  /// A list of editor transactions that were undone since the last time a change was
+  /// made.
+  ///
+  /// As soon as a new change is made through the editor, the [future] list is cleared
+  /// out, because the editor no longer knows if the [future] changes can be applied
+  /// to the document and other editables.
+  List<CommandTransaction> get future => List.from(_future);
+  final _future = <CommandTransaction>[];
 
   /// A pipeline of objects that receive change-lists from command execution
   /// and get the first opportunity to spawn additional commands before the
@@ -120,58 +148,139 @@ class Editor implements RequestDispatcher {
   /// Tracks the number of request executions that are in the process of running.
   int _activeCommandCount = 0;
 
+  bool _isInTransaction = false;
+  bool _isImplicitTransaction = false;
+  CommandTransaction? _transaction;
+
+  /// Whether the editor is currently running reactions for the current transaction.
+  bool _isReacting = false;
+
+  /// Starts a transaction that runs across multiple calls to [execute], until [endTransaction]
+  /// is called.
+  ///
+  /// Typically, a transaction only includes the [EditRequest]s that are passed to a single
+  /// call to [execute]. That's useful in the nominal case where editing code knows everything
+  /// that needs to execute at one time. However, sometimes the later [EditRequest] within a
+  /// single transaction can't be configured until the editing code inspects the [Document]
+  /// after some earlier [EditRequest]. In this situation, the editing code needs to be able
+  /// to run [execute] multiple times while having all [EditRequest]s still considered to be
+  /// part of the same transaction.
+  ///
+  /// Does nothing if a transaction is already in-progress.
+  void startTransaction() {
+    if (_isInTransaction) {
+      return;
+    }
+
+    editorEditsLog.info("Starting transaction");
+    _isInTransaction = true;
+    _activeChangeList = <EditEvent>[];
+    _transaction = CommandTransaction([], clock.now());
+
+    _onTransactionStart();
+  }
+
+  /// Ends a transaction that was started with a call to [startTransaction].
+  ///
+  /// Does nothing if a transaction is not in-progress.
+  void endTransaction() {
+    if (!_isInTransaction) {
+      return;
+    }
+
+    if (_transaction!.commands.isNotEmpty && isHistoryEnabled) {
+      if (_history.isEmpty) {
+        // Add this transaction onto the history stack.
+        _history.add(_transaction!);
+      } else {
+        final mergeChoice = historyGroupingPolicy.shouldMergeLatestTransaction(_transaction!, _history.last);
+        switch (mergeChoice) {
+          case TransactionMerge.noOpinion:
+          case TransactionMerge.doNotMerge:
+            // Don't alter the transaction history, just add the new transaction to the history.
+            _history.add(_transaction!);
+          case TransactionMerge.mergeOnTop:
+            // Merge this transaction with the transaction just before it. This is used, for example,
+            // to group repeated text input into a single undoable transaction.
+            _history.last
+              ..commands.addAll(_transaction!.commands)
+              ..changes.addAll(_transaction!.changes)
+              ..lastChangeTime = clock.now();
+          case TransactionMerge.replacePrevious:
+            // Replaces the most recent transaction with the new transaction. This is used, for example,
+            // to throw away unnecessary history about selection and composing region changes, for which
+            // only the most recent value is relevant.
+            _history
+              ..removeLast()
+              ..add(_transaction!);
+        }
+      }
+    }
+
+    // Now that an atomic set of changes have completed, let the reactions followup
+    // with more changes, such as auto-correction, tagging, etc.
+    _reactToChanges();
+
+    _isInTransaction = false;
+    _isImplicitTransaction = false;
+    _transaction = null;
+
+    // Note: The transaction isn't fully considered over until after the reactions run.
+    // This is because the reactions need access to the change list from the previous
+    // transaction.
+    _onTransactionEnd();
+
+    editorEditsLog.info("Finished transaction");
+  }
+
   /// Executes the given [requests].
   ///
   /// Any changes that result from the given [requests] are reported to listeners as a series
   /// of [EditEvent]s.
   @override
   void execute(List<EditRequest> requests) {
-    // print("Request execution:");
-    // for (final request in requests) {
-    //   print(" - ${request.runtimeType}");
-    // }
-    // print(StackTrace.current);
-
-    if (_activeCommandCount == 0) {
-      // This is the start of a new transaction.
-      for (final editable in context._resources.values) {
-        editable.onTransactionStart();
-      }
+    if (requests.isEmpty) {
+      // No changes were requested. Don't waste time starting and ending transactions, etc.
+      editorEditsLog.warning("Tried to execute requests without providing any requests");
+      return;
     }
 
-    _activeChangeList ??= <EditEvent>[];
+    editorEditsLog.finer("Executing requests:");
+    for (final request in requests) {
+      editorEditsLog.finer(" - ${request.runtimeType}");
+    }
+
+    if (_activeCommandCount == 0 && !_isInTransaction) {
+      // No transaction was explicitly requested, but all changes exist in a transaction.
+      // Automatically start one, and then end the transaction after the current changes.
+      _isImplicitTransaction = true;
+      startTransaction();
+    }
+
     _activeCommandCount += 1;
 
+    final undoableCommands = <EditCommand>[];
     for (final request in requests) {
       // Execute the given request.
       final command = _findCommandForRequest(request);
       final commandChanges = _executeCommand(command);
       _activeChangeList!.addAll(commandChanges);
+
+      if (command.historyBehavior == HistoryBehavior.undoable) {
+        undoableCommands.add(command);
+        _transaction!.changes.addAll(List.from(commandChanges));
+      }
     }
 
-    // Run reactions and notify listeners, but only do it once per batch of executions.
-    // If we reacted and notified listeners on every execution, then every sub-request
-    // would also run the reactions and notify listeners. At best this would result in
-    // many superfluous calls, but in practice it would probably break lots of features
-    // by notifying listeners too early, and running the same reactions over and over.
-    if (_activeCommandCount == 1) {
-      if (_activeChangeList!.isNotEmpty) {
-        // Run all reactions. These reactions will likely call `execute()` again, with
-        // their own requests, to make additional changes.
-        _reactToChanges();
+    // Log the time at the end of the actions in this transaction.
+    _transaction!.lastChangeTime = clock.now();
 
-        // Notify all listeners that care about changes, but won't spawn additional requests.
-        _notifyListeners();
+    if (undoableCommands.isNotEmpty) {
+      _transaction!.commands.addAll(undoableCommands);
+    }
 
-        // This is the end of a transaction.
-        for (final editable in context._resources.values) {
-          editable.onTransactionEnd(_activeChangeList!);
-        }
-      } else {
-        editorOpsLog.warning("We have an empty change list after processing one or more requests: $requests");
-      }
-
-      _activeChangeList = null;
+    if (_activeCommandCount == 1 && _isImplicitTransaction && !_isReacting) {
+      endTransaction();
     }
 
     _activeCommandCount -= 1;
@@ -180,7 +289,7 @@ class Editor implements RequestDispatcher {
   EditCommand _findCommandForRequest(EditRequest request) {
     EditCommand? command;
     for (final handler in requestHandlers) {
-      command = handler(request);
+      command = handler(this, request);
       if (command != null) {
         return command;
       }
@@ -211,22 +320,362 @@ class Editor implements RequestDispatcher {
     return changeList;
   }
 
+  void _onTransactionStart() {
+    for (final editable in context._resources.values) {
+      editable.onTransactionStart();
+    }
+  }
+
+  void _onTransactionEnd() {
+    for (final editable in context._resources.values) {
+      editable.onTransactionEnd(_activeChangeList!);
+    }
+
+    _activeChangeList = null;
+  }
+
   void _reactToChanges() {
+    if (_activeChangeList!.isEmpty) {
+      return;
+    }
+
+    _isReacting = true;
+
+    // First, let reactions modify the content of the active transaction.
+    for (final reaction in reactionPipeline) {
+      // Note: we pass the active change list because reactions will cause more
+      // changes to be added to that list.
+      reaction.modifyContent(context, this, _activeChangeList!);
+    }
+
+    // Second, start a new transaction and let reactions add separate changes.
+    // ignore: prefer_const_constructors
+    _transaction = CommandTransaction([], clock.now());
     for (final reaction in reactionPipeline) {
       // Note: we pass the active change list because reactions will cause more
       // changes to be added to that list.
       reaction.react(context, this, _activeChangeList!);
     }
+
+    if (_transaction!.commands.isNotEmpty && isHistoryEnabled) {
+      _history.add(_transaction!);
+    }
+
+    // FIXME: try removing this notify listeners
+    // Notify all listeners that care about changes, but won't spawn additional requests.
+    _notifyListeners(List<EditEvent>.from(_activeChangeList!, growable: false));
+
+    _isReacting = false;
   }
 
-  void _notifyListeners() {
-    final changeList = List<EditEvent>.from(_activeChangeList!, growable: false);
+  void undo() {
+    if (!isHistoryEnabled) {
+      // History is disabled, therefore undo/redo are disabled.
+      return;
+    }
+
+    editorEditsLog.info("Running undo");
+    if (_history.isEmpty) {
+      return;
+    }
+
+    editorEditsLog.finer("History before undo:");
+    for (final transaction in _history) {
+      editorEditsLog.finer(" - transaction");
+      for (final command in transaction.commands) {
+        editorEditsLog.finer("   - ${command.runtimeType}: ${command.describe()}");
+      }
+    }
+    editorEditsLog.finer("---");
+
+    // Move the latest command from the history to the future.
+    final transactionToUndo = _history.removeLast();
+    _future.add(transactionToUndo);
+    editorEditsLog.finer("The commands being undone are:");
+    for (final command in transactionToUndo.commands) {
+      editorEditsLog.finer("  - ${command.runtimeType}: ${command.describe()}");
+    }
+
+    editorEditsLog.finer("Resetting all editables to their last checkpoint...");
+    for (final editable in context._resources.values) {
+      // Don't let editables notify listeners during undo.
+      editable.onTransactionStart();
+
+      // Revert all editables to the last snapshot.
+      editable.reset();
+    }
+
+    // Replay all history except for the most recent command transaction.
+    editorEditsLog.finer("Replaying all command history except for the most recent transaction...");
+    final changeEvents = <EditEvent>[];
+    for (final commandTransaction in _history) {
+      for (final command in commandTransaction.commands) {
+        // We re-run the commands without tracking changes and without running reactions
+        // because any relevant reactions should have run the first time around, and already
+        // submitted their commands.
+        final commandChanges = _executeCommand(command);
+        changeEvents.addAll(commandChanges);
+      }
+    }
+
+    editorEditsLog.info("Finished undo");
+
+    editorEditsLog.finer("Ending transaction on all editables");
+    for (final editable in context._resources.values) {
+      // Let editables start notifying listeners again.
+      editable.onTransactionEnd(changeEvents);
+    }
+
+    // TODO: find out why this is needed. If it's not, remove it.
+    _notifyListeners([]);
+  }
+
+  void redo() {
+    if (!isHistoryEnabled) {
+      // History is disabled, therefore undo/redo are disabled.
+      return;
+    }
+
+    editorEditsLog.info("Running redo");
+    if (_future.isEmpty) {
+      return;
+    }
+
+    editorEditsLog.finer("Future transaction:");
+    for (final command in _future.last.commands) {
+      editorEditsLog.finer(" - ${command.runtimeType}");
+    }
+
+    for (final editable in context._resources.values) {
+      // Don't let editables notify listeners during redo.
+      editable.onTransactionStart();
+    }
+
+    final commandTransaction = _future.removeLast();
+    final edits = <EditEvent>[];
+    for (final command in commandTransaction.commands) {
+      final commandEdits = _executeCommand(command);
+      edits.addAll(commandEdits);
+    }
+    _history.add(commandTransaction);
+
+    editorEditsLog.info("Finished redo");
+
+    editorEditsLog.finer("Ending transaction on all editables");
+    for (final editable in context._resources.values) {
+      // Let editables start notifying listeners again.
+      editable.onTransactionEnd(edits);
+    }
+
+    // TODO: find out why this is needed. If it's not, remove it.
+    _notifyListeners([]);
+  }
+
+  void _notifyListeners(List<EditEvent> changeList) {
     for (final listener in _changeListeners) {
       // Note: we pass a given copy of the change list, because listeners should
       // never cause additional editor changes.
       listener.onEdit(changeList);
     }
   }
+}
+
+/// The merge policies that are used in the standard [Editor] construction.
+const defaultMergePolicy = HistoryGroupingPolicyList(
+  [
+    mergeRepeatSelectionChangesPolicy,
+    mergeRapidTextInputPolicy,
+  ],
+);
+
+abstract interface class HistoryGroupingPolicy {
+  TransactionMerge shouldMergeLatestTransaction(
+    CommandTransaction newTransaction,
+    CommandTransaction previousTransaction,
+  );
+}
+
+enum TransactionMerge {
+  noOpinion,
+  doNotMerge,
+  mergeOnTop,
+  replacePrevious;
+
+  static TransactionMerge chooseMoreConservative(TransactionMerge a, TransactionMerge b) {
+    if (a == b) {
+      // They're the same. It doesn't matter.
+      return a;
+    }
+
+    switch (a) {
+      case TransactionMerge.noOpinion:
+        // No opinion has no particular conservative vs liberal metric. Return the other one.
+        return b;
+      case TransactionMerge.doNotMerge:
+        // Explicitly not merging is the most conservative. Return this one.
+        return a;
+      case TransactionMerge.mergeOnTop:
+        if (b == TransactionMerge.doNotMerge) {
+          // doNotMerge is the only more conservative choice than merging on top.
+          return b;
+        }
+
+        return a;
+      case TransactionMerge.replacePrevious:
+        if (b == TransactionMerge.noOpinion) {
+          return a;
+        }
+
+        // replacePrevious is the lease conservative option. The other one always wins.
+        return b;
+    }
+  }
+}
+
+/// A [HistoryGroupingPolicy] that defers to a list of other individual policies.
+///
+/// For most applications, an [Editor]'s transaction grouping policy should probably be
+/// a [HistoryGroupingPolicyList] because most applications will want a number of different
+/// heuristics that decide when to merge transactions.
+///
+/// You can change the way the list of policies make a decision by way of the [choice]
+/// property. You can either merge transactions when *any* of the policies want to merge
+/// ([HistoryGroupingPolicyListChoice.anyPass]), or you can merge transactions when *all*
+/// of the policies want to merge ([HistoryGroupingPolicyListChoice.allPass]).
+class HistoryGroupingPolicyList implements HistoryGroupingPolicy {
+  const HistoryGroupingPolicyList(this.policies);
+
+  final List<HistoryGroupingPolicy> policies;
+
+  @override
+  TransactionMerge shouldMergeLatestTransaction(
+    CommandTransaction newTransaction,
+    CommandTransaction previousTransaction,
+  ) {
+    TransactionMerge mostConservativeChoice = TransactionMerge.noOpinion;
+
+    for (final policy in policies) {
+      final newMergeChoice = policy.shouldMergeLatestTransaction(newTransaction, previousTransaction);
+      if (newMergeChoice == TransactionMerge.doNotMerge) {
+        // A policy has explicitly requested not to merge. Don't merge.
+        return TransactionMerge.doNotMerge;
+      }
+
+      mostConservativeChoice = TransactionMerge.chooseMoreConservative(mostConservativeChoice, newMergeChoice);
+    }
+
+    return mostConservativeChoice;
+  }
+}
+
+const neverMergePolicy = _NeverMergePolicy();
+
+class _NeverMergePolicy implements HistoryGroupingPolicy {
+  const _NeverMergePolicy();
+
+  @override
+  TransactionMerge shouldMergeLatestTransaction(
+          CommandTransaction newTransaction, CommandTransaction previousTransaction) =>
+      TransactionMerge.doNotMerge;
+}
+
+const mergeRepeatSelectionChangesPolicy = MergeRepeatSelectionChangesPolicy();
+
+class MergeRepeatSelectionChangesPolicy implements HistoryGroupingPolicy {
+  const MergeRepeatSelectionChangesPolicy();
+
+  @override
+  TransactionMerge shouldMergeLatestTransaction(
+      CommandTransaction newTransaction, CommandTransaction previousTransaction) {
+    final isNewTransactionAllSelectionAndComposing = newTransaction.changes
+        .where((change) => change is! SelectionChangeEvent && change is! ComposingRegionChangeEvent)
+        .isEmpty;
+
+    if (!isNewTransactionAllSelectionAndComposing) {
+      // The new transaction contains meaningful changes. Let other policies decide
+      // what to do.
+      return TransactionMerge.noOpinion;
+    }
+
+    final isPreviousTransactionAllSelectionAndComposing = previousTransaction.changes
+        .where((change) => change is! SelectionChangeEvent && change is! ComposingRegionChangeEvent)
+        .isEmpty;
+
+    if (!isPreviousTransactionAllSelectionAndComposing) {
+      // The previous transaction contains meaningful changes. Add the new selection/composing
+      // changes on top so that they're undone with the previous content change.
+      return TransactionMerge.mergeOnTop;
+    }
+
+    // The previous and new transactions are all selection and composing changes. We don't
+    // care about this history. Replaces the previous transaction with the new transaction.
+    return TransactionMerge.replacePrevious;
+  }
+}
+
+/// A sane default configuration of a [MergeRapidTextInputPolicy].
+///
+/// To customize the merge time, create a [MergeRapidTextInputPolicy] with the desired merge time.
+const mergeRapidTextInputPolicy = MergeRapidTextInputPolicy();
+
+class MergeRapidTextInputPolicy implements HistoryGroupingPolicy {
+  const MergeRapidTextInputPolicy([this._maxMergeTime = const Duration(milliseconds: 100)]);
+
+  final Duration _maxMergeTime;
+
+  @override
+  TransactionMerge shouldMergeLatestTransaction(
+      CommandTransaction newTransaction, CommandTransaction previousTransaction) {
+    final newContentEvents = newTransaction.changes
+        .where((change) => change is! SelectionChangeEvent && change is! ComposingRegionChangeEvent)
+        .toList();
+    if (newContentEvents.isEmpty) {
+      return TransactionMerge.noOpinion;
+    }
+    final newTextInsertionEvents =
+        newContentEvents.where((change) => change is DocumentEdit && change.change is TextInsertionEvent).toList();
+    if (newTextInsertionEvents.length != newContentEvents.length) {
+      // There were 1+ new content changes that weren't text input. Don't merge transactions.
+      return TransactionMerge.noOpinion;
+    }
+
+    // At this point we know that all new content changes were text input.
+
+    // Check that the previous transaction was also all text input.
+    final previousContentEvents = previousTransaction.changes
+        .where((change) => change is! SelectionChangeEvent && change is! ComposingRegionChangeEvent)
+        .toList();
+    if (previousContentEvents.isEmpty) {
+      return TransactionMerge.noOpinion;
+    }
+    final previousTextInsertionEvents =
+        previousContentEvents.where((change) => change is DocumentEdit && change.change is TextInsertionEvent).toList();
+    if (previousTextInsertionEvents.length != previousContentEvents.length) {
+      // There were 1+ new content changes that weren't text input. Don't merge transactions.
+      return TransactionMerge.noOpinion;
+    }
+
+    if (newTransaction.firstChangeTime.difference(previousTransaction.lastChangeTime) > _maxMergeTime) {
+      // The text insertions were far enough apart in time that we don't want to merge them.
+      return TransactionMerge.noOpinion;
+    }
+
+    // The new and previous transactions were entirely text input. They happened quickly.
+    // Merge them together.
+    return TransactionMerge.mergeOnTop;
+  }
+}
+
+class CommandTransaction {
+  CommandTransaction(this.commands, this.firstChangeTime)
+      : changes = <EditEvent>[],
+        lastChangeTime = firstChangeTime;
+
+  final List<EditCommand> commands;
+  final List<EditEvent> changes;
+
+  final DateTime firstChangeTime;
+  DateTime lastChangeTime;
 }
 
 /// An implementation of [CommandExecutor], designed for [Editor].
@@ -284,6 +733,19 @@ abstract mixin class Editable {
   /// A transaction that was previously started with [onTransactionStart] has now ended, this
   /// [Editable] should notify interested parties of changes.
   void onTransactionEnd(List<EditEvent> edits) {}
+
+  // /// Creates and returns a snapshot of this [Editable]'s current state, or `null` if
+  // /// this [Editable] is in its initial state.
+  // ///
+  // /// The returned snapshot must be a deep copy of any relevant information. It must not
+  // /// hold any references to data outside the snapshot.
+  // Object? createSnapshot();
+  //
+  // /// Updates the state of this [Editable] to match the given [snapshot].
+  // void restoreSnapshot(Object snapshot);
+
+  /// Resets this [Editable] to its initial state.
+  void reset() {}
 }
 
 /// An object that processes [EditRequest]s.
@@ -294,8 +756,29 @@ abstract class RequestDispatcher {
 
 /// A command that alters something in a [Editor].
 abstract class EditCommand {
+  const EditCommand();
+
   /// Executes this command and logs all changes with the [executor].
   void execute(EditContext context, CommandExecutor executor);
+
+  /// The desired "undo" behavior of this command.
+  HistoryBehavior get historyBehavior => HistoryBehavior.undoable;
+
+  String describe() => toString();
+}
+
+/// The way a command interacts with the history ledger, AKA "undo".
+enum HistoryBehavior {
+  /// The command can be undone and redone.
+  ///
+  /// For example: inserting text into a paragraph.
+  undoable,
+
+  /// The command has no impact on history.
+  ///
+  /// For example: entering and exiting interaction mode, (possibly) activating and
+  /// deactivating bold/italics in the composer.
+  nonHistorical,
 }
 
 /// All resources that are available when executing [EditCommand]s, such as a document,
@@ -419,7 +902,7 @@ class EditorCommandQueue {
 /// Factory method that creates and returns an [EditCommand] that can handle
 /// the given [EditRequest], or `null` if this handler doesn't apply to the given
 /// [EditRequest].
-typedef EditRequestHandler = EditCommand? Function(EditRequest);
+typedef EditRequestHandler = EditCommand? Function(Editor editor, EditRequest request);
 
 /// An action that a [Editor] should execute.
 abstract class EditRequest {
@@ -428,16 +911,22 @@ abstract class EditRequest {
 
 /// A change that took place within a [Editor].
 abstract class EditEvent {
-  // Marker interface for all editor change events.
+  const EditEvent();
+
+  /// Describes this change in a human-readable way.
+  String describe() => toString();
 }
 
 /// An [EditEvent] that altered a [Document].
 ///
 /// The specific [Document] change is available in [change].
-class DocumentEdit implements EditEvent {
+class DocumentEdit extends EditEvent {
   DocumentEdit(this.change);
 
   final DocumentChange change;
+
+  @override
+  String describe() => change.describe();
 
   @override
   String toString() => "DocumentEdit -> $change";
@@ -450,26 +939,56 @@ class DocumentEdit implements EditEvent {
   int get hashCode => change.hashCode;
 }
 
-/// An object that's notified with a change list from one or more
-/// commands that were just executed.
+/// An object that's notified with a change list from one or more commands that were just
+/// executed.
 ///
-/// An [EditReaction] can use the given [executor] to spawn additional
-/// [EditCommand]s that should run in response to the [changeList].
+/// An [EditReaction] can use the given [reactionExecutor] to spawn additional [EditCommand]s
+/// that should run in response to the [changeList].
 abstract class EditReaction {
-  void react(EditContext editorContext, RequestDispatcher requestDispatcher, List<EditEvent> changeList);
+  const EditReaction();
+
+  /// Executes additional [modifications] within the current editor transaction.
+  ///
+  /// If undo is run, the recent changes AND the [modifications] will be undone, together.
+  /// This is useful, for example, for a reaction such as spell-check, whose reaction is
+  /// tied directly to the content and shouldn't stand on its own.
+  ///
+  /// To execute actions that are undone on their own, use [react].
+  void modifyContent(EditContext editorContext, RequestDispatcher requestDispatcher, List<EditEvent> changeList) {}
+
+  /// Executes additional [actions] in a new standalone transaction.
+  ///
+  /// If undo is run, these changes will be undone, but the changes leading up to this
+  /// call to [react] will not be undone by that undo call.
+  ///
+  /// To execute additional actions that are undone at the same time as the preceding
+  /// changes, use [modifyContent].
+  void react(EditContext editorContext, RequestDispatcher requestDispatcher, List<EditEvent> changeList) {}
 }
 
 /// An [EditReaction] that delegates its reaction to a given callback function.
-class FunctionalEditReaction implements EditReaction {
-  FunctionalEditReaction(this._react);
+class FunctionalEditReaction extends EditReaction {
+  FunctionalEditReaction({
+    Reaction? modifyContent,
+    Reaction? react,
+  })  : _modifyContent = modifyContent,
+        _react = react,
+        assert(modifyContent != null || react != null);
 
-  final void Function(EditContext editorContext, RequestDispatcher requestDispatcher, List<EditEvent> changeList)
-      _react;
+  final Reaction? _modifyContent;
+  final Reaction? _react;
+
+  @override
+  void modifyContent(EditContext editorContext, RequestDispatcher requestDispatcher, List<EditEvent> changeList) =>
+      _modifyContent?.call(editorContext, requestDispatcher, changeList);
 
   @override
   void react(EditContext editorContext, RequestDispatcher requestDispatcher, List<EditEvent> changeList) =>
-      _react(editorContext, requestDispatcher, changeList);
+      _react?.call(editorContext, requestDispatcher, changeList);
 }
+
+typedef Reaction = void Function(
+    EditContext editorContext, RequestDispatcher requestDispatcher, List<EditEvent> changeList);
 
 /// An object that's notified with a change list from one or more
 /// commands that were just executed within a [Editor].
@@ -493,8 +1012,52 @@ class FunctionalEditListener implements EditListener {
   void onEdit(List<EditEvent> changeList) => _onEdit(changeList);
 }
 
+/// Extensions that provide direct, type-safe access to [Editable]s that are
+/// expected to exist in all [Editor]s.
+///
+/// This extension is similar to [StandardEditablesInContext], except this extension
+/// operates on an [Editor] and the other operates on [EditContext]s. Both exist
+/// for convenience.
+extension StandardEditables on Editor {
+  /// Finds and returns the [MutableDocument] within the [Editor].
+  MutableDocument get document => context.find<MutableDocument>(Editor.documentKey);
+
+  /// Finds and returns the [MutableDocument] within the [Editor], or `null` if no [MutableDocument]
+  /// is in the [Editor].
+  MutableDocument? get maybeDocument => context.findMaybe<MutableDocument>(Editor.documentKey);
+
+  /// Finds and returns the [MutableDocumentComposer] within the [Editor].
+  MutableDocumentComposer get composer => context.find<MutableDocumentComposer>(Editor.composerKey);
+
+  /// Finds and returns the [MutableDocumentComposer] within the [Editor], or `null` if no
+  /// [MutableDocumentComposer] is in the [Editor].
+  MutableDocumentComposer? get maybeComposer => context.findMaybe<MutableDocumentComposer>(Editor.composerKey);
+}
+
+/// Extensions that provide direct, type-safe access to [Editable]s that are
+/// expected to exist in all [EditContext]s.
+///
+/// This extension is similar to [StandardEditables], except this extension
+/// operates on an [EditContext] and the other operates on [Editor]s. Both exist
+/// for convenience.
+extension StandardEditablesInContext on EditContext {
+  /// Finds and returns the [MutableDocument] within the [EditContext].
+  MutableDocument get document => find<MutableDocument>(Editor.documentKey);
+
+  /// Finds and returns the [MutableDocument] within the [EditContext], or `null` if no [MutableDocument]
+  /// is in the [EditContext].
+  MutableDocument? get maybeDocument => findMaybe<MutableDocument>(Editor.documentKey);
+
+  /// Finds and returns the [MutableDocumentComposer] within the [EditContext].
+  MutableDocumentComposer get composer => find<MutableDocumentComposer>(Editor.composerKey);
+
+  /// Finds and returns the [MutableDocumentComposer] within the [EditContext], or `null` if no
+  /// [MutableDocumentComposer] is in the [EditContext].
+  MutableDocumentComposer? get maybeComposer => findMaybe<MutableDocumentComposer>(Editor.composerKey);
+}
+
 /// An in-memory, mutable [Document].
-class MutableDocument implements Document, Editable {
+class MutableDocument with Iterable<DocumentNode> implements Document, Editable {
   /// Creates an in-memory, mutable version of a [Document].
   ///
   /// Initializes the content of this [MutableDocument] with the given [nodes],
@@ -503,6 +1066,8 @@ class MutableDocument implements Document, Editable {
     List<DocumentNode>? nodes,
   }) : _nodes = nodes ?? [] {
     _refreshNodeIdCaches();
+
+    _latestNodesSnapshot = List.from(_nodes);
   }
 
   /// Creates an [Document] with a single [ParagraphNode].
@@ -523,10 +1088,16 @@ class MutableDocument implements Document, Editable {
     _listeners.clear();
   }
 
+  late final List<DocumentNode> _latestNodesSnapshot;
+  bool _didReset = false;
+
   final List<DocumentNode> _nodes;
 
   @override
-  List<DocumentNode> get nodes => UnmodifiableListView(_nodes);
+  int get nodeCount => _nodes.length;
+
+  @override
+  bool get isEmpty => _nodes.isEmpty;
 
   /// Maps a node id to its index in the node list.
   final Map<String, int> _nodeIndicesById = {};
@@ -535,6 +1106,15 @@ class MutableDocument implements Document, Editable {
   final Map<String, DocumentNode> _nodesById = {};
 
   final _listeners = <DocumentChangeListener>[];
+
+  @override
+  Iterator<DocumentNode> get iterator => _nodes.iterator;
+
+  @override
+  DocumentNode? get firstOrNull => _nodes.firstOrNull;
+
+  @override
+  DocumentNode? get lastOrNull => _nodes.lastOrNull;
 
   @override
   DocumentNode? getNodeById(String nodeId) {
@@ -573,13 +1153,23 @@ class MutableDocument implements Document, Editable {
 
   @override
   DocumentNode? getNodeBefore(DocumentNode node) {
-    final nodeIndex = getNodeIndexById(node.id);
+    return getNodeBeforeById(node.id);
+  }
+
+  @override
+  DocumentNode? getNodeBeforeById(String nodeId) {
+    final nodeIndex = getNodeIndexById(nodeId);
     return nodeIndex > 0 ? getNodeAt(nodeIndex - 1) : null;
   }
 
   @override
   DocumentNode? getNodeAfter(DocumentNode node) {
-    final nodeIndex = getNodeIndexById(node.id);
+    return getNodeAfterById(node.id);
+  }
+
+  @override
+  DocumentNode? getNodeAfterById(String nodeId) {
+    final nodeIndex = getNodeIndexById(nodeId);
     return nodeIndex >= 0 && nodeIndex < _nodes.length - 1 ? getNodeAt(nodeIndex + 1) : null;
   }
 
@@ -616,20 +1206,20 @@ class MutableDocument implements Document, Editable {
 
   /// Inserts [newNode] immediately before the given [existingNode].
   void insertNodeBefore({
-    required DocumentNode existingNode,
+    required String existingNodeId,
     required DocumentNode newNode,
   }) {
-    final nodeIndex = _nodes.indexOf(existingNode);
+    final nodeIndex = getNodeIndexById(existingNodeId);
     _nodes.insert(nodeIndex, newNode);
     _refreshNodeIdCaches();
   }
 
   /// Inserts [newNode] immediately after the given [existingNode].
   void insertNodeAfter({
-    required DocumentNode existingNode,
+    required String existingNodeId,
     required DocumentNode newNode,
   }) {
-    final nodeIndex = _nodes.indexOf(existingNode);
+    final nodeIndex = getNodeIndexById(existingNodeId);
     if (nodeIndex >= 0 && nodeIndex < _nodes.length) {
       _nodes.insert(nodeIndex + 1, newNode);
       _refreshNodeIdCaches();
@@ -655,15 +1245,24 @@ class MutableDocument implements Document, Editable {
   }
 
   /// Deletes the given [node] from the [Document].
-  bool deleteNode(DocumentNode node) {
+  bool deleteNode(String nodeId) {
     bool isRemoved = false;
 
-    isRemoved = _nodes.remove(node);
-    if (isRemoved) {
-      _refreshNodeIdCaches();
+    final index = getNodeIndexById(nodeId);
+    if (index < 0) {
+      return false;
     }
 
+    _nodes.removeAt(index);
+    _refreshNodeIdCaches();
+
     return isRemoved;
+  }
+
+  /// Deletes all nodes from the [Document].
+  void clear() {
+    _nodes.clear();
+    _refreshNodeIdCaches();
   }
 
   /// Moves a [DocumentNode] matching the given [nodeId] from its current index
@@ -683,18 +1282,37 @@ class MutableDocument implements Document, Editable {
   }
 
   /// Replaces the given [oldNode] with the given [newNode]
+  @Deprecated("Use replaceNodeById() instead")
   void replaceNode({
     required DocumentNode oldNode,
     required DocumentNode newNode,
   }) {
     final index = _nodes.indexOf(oldNode);
 
-    if (index != -1) {
+    if (index >= 0) {
       _nodes.removeAt(index);
       _nodes.insert(index, newNode);
       _refreshNodeIdCaches();
     } else {
       throw Exception('Could not find oldNode: ${oldNode.id}');
+    }
+  }
+
+  /// Replaces the node with the given [nodeId] with the given [newNode].
+  ///
+  /// Throws an exception if no node exists with the given [nodeId].
+  void replaceNodeById(
+    String nodeId,
+    DocumentNode newNode,
+  ) {
+    final index = getNodeIndexById(nodeId);
+
+    if (index >= 0) {
+      _nodes.removeAt(index);
+      _nodes.insert(index, newNode);
+      _refreshNodeIdCaches();
+    } else {
+      throw Exception('Could not find node with ID: $nodeId');
     }
   }
 
@@ -706,15 +1324,24 @@ class MutableDocument implements Document, Editable {
   /// ignores the runtime type of the [Document], itself.
   @override
   bool hasEquivalentContent(Document other) {
-    final otherNodes = other.nodes;
-    if (_nodes.length != otherNodes.length) {
+    if (_nodes.length != other.nodeCount) {
       return false;
     }
+    if (isEmpty) {
+      // Both documents are empty, and therefore are equivalent.
+      return true;
+    }
 
-    for (int i = 0; i < _nodes.length; ++i) {
-      if (!_nodes[i].hasEquivalentContent(otherNodes[i])) {
+    DocumentNode? thisDocNode = first;
+    DocumentNode? otherDocNode = other.first;
+
+    while (thisDocNode != null && otherDocNode != null) {
+      if (!thisDocNode.hasEquivalentContent(otherDocNode)) {
         return false;
       }
+
+      thisDocNode = getNodeAfter(thisDocNode);
+      otherDocNode = other.getNodeAfter(otherDocNode);
     }
 
     return true;
@@ -738,14 +1365,25 @@ class MutableDocument implements Document, Editable {
   @override
   void onTransactionEnd(List<EditEvent> edits) {
     final documentChanges = edits.whereType<DocumentEdit>().map((edit) => edit.change).toList();
-    if (documentChanges.isEmpty) {
+    if (documentChanges.isEmpty && !_didReset) {
       return;
     }
+    _didReset = false;
 
     final changeLog = DocumentChangeLog(documentChanges);
     for (final listener in _listeners) {
       listener(changeLog);
     }
+  }
+
+  @override
+  void reset() {
+    _nodes
+      ..clear()
+      ..addAll(_latestNodesSnapshot);
+    _refreshNodeIdCaches();
+
+    _didReset = true;
   }
 
   /// Updates all the maps which use the node id as the key.
@@ -766,7 +1404,7 @@ class MutableDocument implements Document, Editable {
       identical(this, other) ||
       other is MutableDocument &&
           runtimeType == other.runtimeType &&
-          const DeepCollectionEquality().equals(_nodes, other.nodes);
+          const DeepCollectionEquality().equals(_nodes, other._nodes);
 
   @override
   int get hashCode => _nodes.hashCode;

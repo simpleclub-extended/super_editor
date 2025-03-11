@@ -105,8 +105,6 @@ class _MobileEditingAndroidDemoState extends State<MobileEditingAndroidDemo> {
               focusNode: _editorFocusNode,
               documentLayoutKey: _docLayoutKey,
               editor: _docEditor,
-              document: _doc,
-              composer: _composer,
               overlayController: _overlayController,
               gestureMode: DocumentGestureMode.android,
               inputSource: TextInputSource.ime,
@@ -194,7 +192,7 @@ class _MobileEditingAndroidDemoState extends State<MobileEditingAndroidDemo> {
               borderRadius: BorderRadius.circular(8),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.2),
+                  color: Colors.black.withValues(alpha: 0.2),
                   blurRadius: 5,
                   offset: const Offset(0, 3),
                 ),

@@ -44,6 +44,7 @@ MutableDocument deserializeMarkdownToDocument(
   }).toList();
 
   final markdownDoc = md.Document(
+    encodeHtml: encodeHtml,
     blockSyntaxes: [
       ...customBlockSyntax,
       if (syntax == MarkdownSyntax.superEditor) ...[
@@ -80,6 +81,14 @@ MutableDocument deserializeMarkdownToDocument(
     documentNodes.add(
       ParagraphNode(id: Editor.createNodeId(), text: AttributedText()),
     );
+  }
+
+  // Add 1 hanging line for every 2 blank lines at the end, need this to preserve behavior pre markdown 7.2.1
+  final hangingEmptyLines = markdownLines.reversed.takeWhile((md.Line l) => l.isBlankLine);
+  if(hangingEmptyLines.isNotEmpty && documentNodes.lastOrNull is ListItemNode) {
+    for(var i = 0; i < hangingEmptyLines.length ~/ 2; i++) {
+      documentNodes.add(ParagraphNode(id: Editor.createNodeId(), text: AttributedText()));
+    }
   }
 
   return MutableDocument(nodes: documentNodes);
@@ -349,7 +358,7 @@ class _MarkdownToDocument implements md.NodeVisitor {
       ParagraphNode(
         id: Editor.createNodeId(),
         text: _parseInlineText(element.textContent),
-        metadata: {
+        metadata: const {
           'blockType': blockquoteAttribution,
         },
       ),
@@ -371,7 +380,7 @@ class _MarkdownToDocument implements md.NodeVisitor {
         text: AttributedText(
           element.textContent,
         ),
-        metadata: {
+        metadata: const {
           'blockType': codeAttribution,
         },
       ),
@@ -452,6 +461,7 @@ class _MarkdownToDocument implements md.NodeVisitor {
       text,
       md.Document(
         inlineSyntaxes: [
+          SingleStrikethroughSyntax(), // this needs to be before md.StrikethroughSyntax to be recognized
           md.StrikethroughSyntax(),
           UnderlineSyntax(),
           if (syntax == MarkdownSyntax.superEditor) //
@@ -490,7 +500,7 @@ class InlineMarkdownToDocument implements md.NodeVisitor {
   // if we find an image without any text, we're parsing an image.
   // Otherwise, if there is any text, then we're parsing a paragraph
   // and we ignore the image.
-  bool get isImage => _imageUrl != null && attributedText.text.isEmpty;
+  bool get isImage => _imageUrl != null && attributedText.isEmpty;
 
   String? _imageUrl;
 
@@ -541,29 +551,29 @@ class InlineMarkdownToDocument implements md.NodeVisitor {
     if (element.tag == 'strong') {
       styledText.addAttribution(
         boldAttribution,
-        SpanRange(0, styledText.text.length - 1),
+        SpanRange(0, styledText.length - 1),
       );
     } else if (element.tag == 'em') {
       styledText.addAttribution(
         italicsAttribution,
-        SpanRange(0, styledText.text.length - 1),
+        SpanRange(0, styledText.length - 1),
       );
     } else if (element.tag == "del") {
       styledText.addAttribution(
         strikethroughAttribution,
-        SpanRange(0, styledText.text.length - 1),
+        SpanRange(0, styledText.length - 1),
       );
     } else if (element.tag == "u") {
       styledText.addAttribution(
         underlineAttribution,
-        SpanRange(0, styledText.text.length - 1),
+        SpanRange(0, styledText.length - 1),
       );
     } else if (element.tag == 'a') {
       final url = Uri.tryParse(element.attributes['href']!);
       if (url != null) {
         styledText.addAttribution(
           LinkAttribution.fromUri(url),
-          SpanRange(0, styledText.text.length - 1),
+          SpanRange(0, styledText.length - 1),
         );
       }
     }
@@ -587,25 +597,57 @@ abstract class ElementToNodeConverter {
   DocumentNode? handleElement(md.Element element);
 }
 
-/// A Markdown [TagSyntax] that matches underline spans of text, which are represented in
+/// A Markdown [DelimiterSyntax] that matches underline spans of text, which are represented in
 /// Markdown with surrounding `¬` tags, e.g., "this is ¬underline¬ text".
 ///
-/// This [TagSyntax] produces `Element`s with a `u` tag.
+/// This [DelimiterSyntax] produces `Element`s with a `u` tag.
 class UnderlineSyntax extends md.DelimiterSyntax {
-  UnderlineSyntax()
-      : super('¬', requiresDelimiterRun: true, allowIntraWord: true);
+
+  /// According to the docs:
+  ///
+  /// https://pub.dev/documentation/markdown/latest/markdown/DelimiterSyntax-class.html
+  ///
+  /// The DelimiterSyntax constructor takes a nullable. However, the problem is there is a bug in the underlying dart
+  /// library if you don't pass it. Due to these two lines, one sets it to const [] if not passed, then the next tries
+  /// to sort. So we have to pass something at the moment or it blows up.
+  ///
+  /// https://github.com/dart-lang/markdown/blob/d53feae0760a4f0aae5ffdfb12d8e6acccf14b40/lib/src/inline_syntaxes/delimiter_syntax.dart#L67
+  /// https://github.com/dart-lang/markdown/blob/d53feae0760a4f0aae5ffdfb12d8e6acccf14b40/lib/src/inline_syntaxes/delimiter_syntax.dart#L319
+  static final _tags = [ md.DelimiterTag("u", 1) ];
+
+  UnderlineSyntax() : super('¬', requiresDelimiterRun: true, allowIntraWord: true, tags: _tags);
 
   @override
+  Iterable<md.Node>? close(
   Iterable<md.Node>? close(
     md.InlineParser parser,
     md.Delimiter opener,
     md.Delimiter closer, {
     required String tag,
     required List<md.Node> Function() getChildren,
+    required String tag,
   }) {
-    return [md.Element('u', getChildren())];
+    final element = md.Element('u', getChildren());
+    return [ element ];
   }
 }
+
+/// A Markdown [DelimiterSyntax] that matches strikethrough spans of text, which are represented in
+/// Markdown with surrounding `~` tags, e.g., "this is ~strikethrough~ text".
+///
+/// Markdown in library in 7.2.1 seems to not be matching single strikethroughs
+///
+/// This [DelimiterSyntax] produces `Element`s with a `del` tag.
+class SingleStrikethroughSyntax extends md.DelimiterSyntax {
+  SingleStrikethroughSyntax()
+      : super(
+          '~',
+          requiresDelimiterRun: true,
+          allowIntraWord: true,
+          tags: [md.DelimiterTag('del', 1)],
+        );
+}
+
 
 /// Parses a paragraph preceded by an alignment token.
 class _ParagraphWithAlignmentSyntax
@@ -635,8 +677,7 @@ class _ParagraphWithAlignmentSyntax
     /// We found a paragraph alignment token, but the block after the alignment token isn't a paragraph.
     /// Therefore, the paragraph alignment token is actually regular content. This parser doesn't need to
     /// take any action.
-    if (_standardNonParagraphBlockSyntaxes
-        .any((syntax) => syntax.pattern.hasMatch(nextLine.content))) {
+    if (_standardNonParagraphBlockSyntaxes.any((syntax) => syntax.pattern.hasMatch(nextLine.content))) {
       return false;
     }
 
@@ -712,8 +753,7 @@ class _EmptyLinePreservingParagraphSyntax extends md.BlockSyntax {
       return true;
     }
 
-    if (_isAtParagraphEnd(parser,
-        ignoreEmptyBlocks: _endsWithHardLineBreak(parser.current.content))) {
+    if (_isAtParagraphEnd(parser, ignoreEmptyBlocks: _endsWithHardLineBreak(parser.current.content))) {
       // Another parser wants to parse this input. Let the other parser run.
       return false;
     }
@@ -878,10 +918,9 @@ class _TaskSyntax extends md.BlockSyntax {
     // - find the start of another block element (including another task)
     while (!parser.isDone &&
         !_blankLinePattern.hasMatch(parser.current.content) &&
-        !_standardNonParagraphBlockSyntaxes
-            .any((syntax) => syntax.pattern.hasMatch(parser.current.content))) {
+        !_standardNonParagraphBlockSyntaxes.any((syntax) => syntax.pattern.hasMatch(parser.current.content))) {
       buffer.write('\n');
-      buffer.write(parser.current);
+      buffer.write(parser.current.content);
 
       parser.advance();
     }

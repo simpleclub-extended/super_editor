@@ -1,4 +1,7 @@
+import 'dart:math';
+
 import 'package:attributed_text/attributed_text.dart';
+import 'package:characters/characters.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:super_editor/src/core/document.dart';
@@ -40,10 +43,10 @@ class ActionTagsPlugin extends SuperEditorPlugin {
     TagRule tagRule = defaultActionTagRule,
   }) : _tagRule = tagRule {
     _requestHandlers = <EditRequestHandler>[
-      (request) => request is SubmitComposingActionTagRequest //
+      (editor, request) => request is SubmitComposingActionTagRequest //
           ? SubmitComposingActionTagCommand()
           : null,
-      (request) => request is CancelComposingActionTagRequest //
+      (editor, request) => request is CancelComposingActionTagRequest //
           ? CancelComposingActionTagCommand(request.tagRule)
           : null,
     ];
@@ -112,16 +115,27 @@ class SubmitComposingActionTagRequest implements EditRequest {
   const SubmitComposingActionTagRequest();
 }
 
-class SubmitComposingActionTagCommand implements EditCommand {
+class SubmitComposingActionTagCommand extends EditCommand {
+  @override
+  HistoryBehavior get historyBehavior => HistoryBehavior.undoable;
+
   @override
   void execute(EditContext context, CommandExecutor executor) {
-    final document = context.find<MutableDocument>(Editor.documentKey);
+    final document = context.document;
     final composer = context.find<MutableDocumentComposer>(Editor.composerKey);
-    if (composer.selection == null) {
+    final selection = composer.selection;
+
+    if (selection == null) {
       return;
     }
 
-    final extent = composer.selection!.extent;
+    if (!selection.isCollapsed) {
+      // Action tags are composed while the user is typing. Since the
+      // selection is expanded, the user is not typing.
+      return;
+    }
+
+    final extent = selection.extent;
     final extentPosition = extent.nodePosition;
     if (extentPosition is! TextNodePosition) {
       return;
@@ -129,12 +143,12 @@ class SubmitComposingActionTagCommand implements EditCommand {
 
     final textNode = document.getNodeById(extent.nodeId) as TextNode;
 
-    final tagAroundPosition = TagFinder.findTagAroundPosition(
+    final tagAroundPosition = _findTagUpstream(
       // TODO: deal with these tag rules in requests and commands, should the user really pass them?
       tagRule: defaultActionTagRule,
       nodeId: composer.selection!.extent.nodeId,
       text: textNode.text,
-      expansionPosition: extentPosition,
+      caretPosition: extentPosition,
       isTokenCandidate: (attributions) => !attributions.contains(actionTagCancelledAttribution),
     );
 
@@ -183,14 +197,17 @@ class CancelComposingActionTagRequest implements EditRequest {
   int get hashCode => tagRule.hashCode;
 }
 
-class CancelComposingActionTagCommand implements EditCommand {
+class CancelComposingActionTagCommand extends EditCommand {
   const CancelComposingActionTagCommand(this._tagRule);
 
   final TagRule _tagRule;
 
   @override
+  HistoryBehavior get historyBehavior => HistoryBehavior.undoable;
+
+  @override
   void execute(EditContext context, CommandExecutor executor) {
-    final document = context.find<MutableDocument>(Editor.documentKey);
+    final document = context.document;
     final composer = context.find<MutableDocumentComposer>(Editor.composerKey);
 
     final selection = composer.selection;
@@ -202,29 +219,25 @@ class CancelComposingActionTagCommand implements EditCommand {
       return;
     }
 
-    // Look for a composing tag at the extent, or the base.
+    if (!selection.isCollapsed) {
+      // Action tags are composed while the user is typing. Since the
+      // selection is expanded, the user is not typing.
+      return;
+    }
+
+    // Look for a composing tag at the extent.
     final base = selection.base;
     final extent = selection.extent;
     TagAroundPosition? composingToken;
     TextNode? textNode;
 
-    if (base.nodePosition is TextNodePosition) {
-      textNode = document.getNodeById(selection.base.nodeId) as TextNode;
-      composingToken = TagFinder.findTagAroundPosition(
-        tagRule: _tagRule,
-        nodeId: textNode.id,
-        text: textNode.text,
-        expansionPosition: base.nodePosition as TextNodePosition,
-        isTokenCandidate: (tokenAttributions) => tokenAttributions.contains(actionTagComposingAttribution),
-      );
-    }
-    if (composingToken == null && extent.nodePosition is TextNodePosition) {
+    if (extent.nodePosition is TextNodePosition) {
       textNode = document.getNodeById(selection.extent.nodeId) as TextNode;
-      composingToken = TagFinder.findTagAroundPosition(
+      composingToken = _findTagUpstream(
         tagRule: _tagRule,
         nodeId: textNode.id,
         text: textNode.text,
-        expansionPosition: base.nodePosition as TextNodePosition,
+        caretPosition: base.nodePosition as TextNodePosition,
         isTokenCandidate: (tokenAttributions) => tokenAttributions.contains(actionTagComposingAttribution),
       );
     }
@@ -250,7 +263,7 @@ class CancelComposingActionTagCommand implements EditCommand {
       AddTextAttributionsCommand(
         documentRange: textNode.selectionBetween(
           composingToken.indexedTag.startOffset,
-          composingToken.indexedTag.endOffset,
+          composingToken.indexedTag.startOffset + 1,
         ),
         attributions: {actionTagCancelledAttribution},
       ),
@@ -258,7 +271,7 @@ class CancelComposingActionTagCommand implements EditCommand {
   }
 }
 
-class ActionTagComposingReaction implements EditReaction {
+class ActionTagComposingReaction extends EditReaction {
   ActionTagComposingReaction({
     required TagRule tagRule,
     required OnUpdateComposingActionTag onUpdateComposingActionTag,
@@ -272,14 +285,16 @@ class ActionTagComposingReaction implements EditReaction {
 
   @override
   void react(EditContext editorContext, RequestDispatcher requestDispatcher, List<EditEvent> changeList) {
-    final document = editorContext.find<MutableDocument>(Editor.documentKey);
+    final document = editorContext.document;
     final composer = editorContext.find<MutableDocumentComposer>(Editor.composerKey);
 
     _composingTag = editorContext.composingActionTag.value;
 
     _healCancelledTags(requestDispatcher, document, changeList);
 
-    if (composer.selection == null) {
+    if (composer.selection?.isCollapsed != true) {
+      // Action tags are composed while the user is typing. Since the
+      // selection is either null or expanded, the user is not typing.
       _cancelComposingTag(requestDispatcher);
       editorContext.composingActionTag.value = null;
       _onUpdateComposingActionTag(null);
@@ -288,29 +303,18 @@ class ActionTagComposingReaction implements EditReaction {
 
     final selection = composer.selection!;
 
-    // Look for a composing tag at the extent, or the base.
-    final base = selection.base;
+    // Look for a composing tag at the extent.
     final extent = selection.extent;
     TagAroundPosition? tagAroundPosition;
     TextNode? textNode;
 
-    if (base.nodePosition is TextNodePosition) {
-      textNode = document.getNodeById(selection.base.nodeId) as TextNode;
-      tagAroundPosition = TagFinder.findTagAroundPosition(
-        tagRule: _tagRule,
-        nodeId: textNode.id,
-        text: textNode.text,
-        expansionPosition: base.nodePosition as TextNodePosition,
-        isTokenCandidate: (attributions) => !attributions.contains(actionTagCancelledAttribution),
-      );
-    }
-    if (tagAroundPosition == null && extent.nodePosition is TextNodePosition) {
+    if (extent.nodePosition is TextNodePosition) {
       textNode = document.getNodeById(selection.extent.nodeId) as TextNode;
-      tagAroundPosition = TagFinder.findTagAroundPosition(
+      tagAroundPosition = _findTagUpstream(
         tagRule: _tagRule,
         nodeId: textNode.id,
         text: textNode.text,
-        expansionPosition: base.nodePosition as TextNodePosition,
+        caretPosition: extent.nodePosition as TextNodePosition,
         isTokenCandidate: (attributions) => !attributions.contains(actionTagCancelledAttribution),
       );
     }
@@ -447,6 +451,81 @@ class ActionTagComposingReaction implements EditReaction {
       ),
     ]);
   }
+}
+
+/// Finds a tag that starts upstream to the [caretPosition] and ends
+/// at the [caretPosition].
+///
+/// For example, considering the following text, where '|' represents the caret:
+///
+///   "hello/wo|rld"
+///
+/// This method will extract "/wo" as the tag.
+TagAroundPosition? _findTagUpstream({
+  required TagRule tagRule,
+  required String nodeId,
+  required AttributedText text,
+  required TextNodePosition caretPosition,
+  required bool Function(Set<Attribution> tokenAttributions) isTokenCandidate,
+}) {
+  final rawText = text.toPlainText();
+  if (rawText.isEmpty) {
+    return null;
+  }
+
+  int splitIndex = min(caretPosition.offset, rawText.length);
+  splitIndex = max(splitIndex, 0);
+
+  // Extract the text upstream to the caret.
+  // For example: "hello/wor|ld"
+  // -> extracts the text "hello/wor"
+  final charactersBefore = rawText.substring(0, splitIndex).characters;
+  final iteratorUpstream = charactersBefore.iteratorAtEnd;
+
+  if (charactersBefore.isNotEmpty && tagRule.excludedCharacters.contains(charactersBefore.last)) {
+    // The character where we're supposed to begin our expansion is a
+    // character that's not allowed in a tag. Therefore, no tag exists
+    // around the search offset.
+    return null;
+  }
+
+  // Move upstream until we find the trigger character or an excluded character.
+  while (iteratorUpstream.moveBack()) {
+    final currentCharacter = iteratorUpstream.current;
+    if (tagRule.excludedCharacters.contains(currentCharacter)) {
+      // The upstream character isn't allowed to appear in a tag. end the search.
+      return null;
+    }
+
+    if (currentCharacter == tagRule.trigger) {
+      // The character we are reading is the trigger.
+      // We move the iteratorUpstream one last time to include the trigger in the tokenRange and stop looking any further upstream
+      iteratorUpstream.moveBack();
+      break;
+    }
+  }
+
+  final tokenStartOffset = splitIndex - iteratorUpstream.stringAfterLength;
+  final tokenRange = SpanRange(tokenStartOffset, splitIndex);
+
+  final tagText = text.substringInRange(tokenRange);
+  if (!tagText.startsWith(tagRule.trigger)) {
+    return null;
+  }
+
+  final tokenAttributions = text.getAttributionSpansInRange(attributionFilter: (a) => true, range: tokenRange);
+  if (!isTokenCandidate(tokenAttributions.map((span) => span.attribution).toSet())) {
+    return null;
+  }
+
+  return TagAroundPosition(
+    indexedTag: IndexedTag(
+      Tag(tagRule.trigger, tagText.substring(1)),
+      nodeId,
+      tokenStartOffset,
+    ),
+    searchOffset: caretPosition.offset,
+  );
 }
 
 const _composingActionTagKey = "composing_action_tag";

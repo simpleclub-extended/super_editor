@@ -395,11 +395,8 @@ class _TextRangeSelectorState extends State<TextRangeSelector> {
             width: widget.cellWidth,
             height: widget.cellHeight,
             decoration: BoxDecoration(
-              border: Border.all(
-                  color: _isSelected(index) ? Colors.tealAccent : Colors.grey),
-              color: _isSelected(index)
-                  ? Colors.tealAccent.withOpacity(0.7)
-                  : Colors.grey.withOpacity(0.7),
+              border: Border.all(color: _isSelected(index) ? Colors.tealAccent : Colors.grey),
+              color: _isSelected(index) ? Colors.tealAccent.withValues(alpha: 0.7) : Colors.grey.withValues(alpha: 0.7),
             ),
           ),
         ),

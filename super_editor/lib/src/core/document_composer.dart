@@ -108,6 +108,7 @@ class MutableDocumentComposer extends DocumentComposer implements Editable {
 
   bool _isInTransaction = false;
   bool _didChangeSelectionDuringTransaction = false;
+  bool _didReset = false;
 
   /// Sets the current [selection] for a [Document].
   ///
@@ -140,9 +141,7 @@ class MutableDocumentComposer extends DocumentComposer implements Editable {
   @override
   void onTransactionStart() {
     _selectionNotifier.pauseNotifications();
-
     _composingRegion.pauseNotifications();
-
     _isInInteractionMode.pauseNotifications();
 
     _isInTransaction = true;
@@ -157,10 +156,25 @@ class MutableDocumentComposer extends DocumentComposer implements Editable {
     if (_latestSelectionChange != null && _didChangeSelectionDuringTransaction) {
       _streamController.sink.add(_latestSelectionChange!);
     }
-
     _composingRegion.resumeNotifications();
-
     _isInInteractionMode.resumeNotifications();
+
+    if (_didReset) {
+      // Our state was reset (possibly for to undo an operation). Anything may have changed.
+      // Force notify all listeners.
+      _didReset = false;
+      _selectionNotifier.notifyListeners();
+      _composingRegion.notifyListeners();
+      _isInInteractionMode.notifyListeners();
+    }
+  }
+
+  @override
+  void reset() {
+    _selectionNotifier.value = null;
+    _latestSelectionChange = null;
+    _composingRegion.value = null;
+    _didReset = true;
   }
 }
 
@@ -325,7 +339,7 @@ class ChangeSelectionRequest implements EditRequest {
 
 /// An [EditCommand] that changes the [DocumentSelection] in the [DocumentComposer]
 /// to the [newSelection].
-class ChangeSelectionCommand implements EditCommand {
+class ChangeSelectionCommand extends EditCommand {
   const ChangeSelectionCommand(
     this.newSelection,
     this.changeType,
@@ -344,9 +358,19 @@ class ChangeSelectionCommand implements EditCommand {
   final String reason;
 
   @override
+  HistoryBehavior get historyBehavior => HistoryBehavior.undoable;
+
+  @override
+  String describe() => "Change selection ($changeType): $newSelection";
+
+  @override
   void execute(EditContext context, CommandExecutor executor) {
     final composer = context.find<MutableDocumentComposer>(Editor.composerKey);
     final initialSelection = composer.selection;
+    if (initialSelection == newSelection) {
+      // Selection is already where it should be.
+      return;
+    }
 
     composer.setSelectionWithReason(newSelection, reason);
 
@@ -362,7 +386,7 @@ class ChangeSelectionCommand implements EditCommand {
 }
 
 /// A [EditEvent] that represents a change to the user's selection within a document.
-class SelectionChangeEvent implements EditEvent {
+class SelectionChangeEvent extends EditEvent {
   const SelectionChangeEvent({
     required this.oldSelection,
     required this.newSelection,
@@ -377,11 +401,31 @@ class SelectionChangeEvent implements EditEvent {
   final String reason;
 
   @override
+  String describe() {
+    final buffer = StringBuffer("Selection - ${changeType.name}, $reason");
+    if (newSelection == null) {
+      buffer.write(" (SELECTION REMOVED)");
+      return buffer.toString();
+    }
+
+    if (newSelection!.isCollapsed) {
+      buffer.write(" (at ${newSelection!.extent.nodeId} - ${newSelection!.extent.nodePosition}");
+      return buffer.toString();
+    }
+
+    buffer
+      ..writeln("")
+      ..writeln(" - from: ${newSelection!.base.nodeId} - ${newSelection!.base.nodePosition}")
+      ..write(" - to: ${newSelection!.extent.nodeId} - ${newSelection!.extent.nodePosition}");
+    return buffer.toString();
+  }
+
+  @override
   String toString() => "[SelectionChangeEvent] - New selection: $newSelection, change type: $changeType";
 }
 
 /// A [EditEvent] that represents a change to the user's composing region within a document.
-class ComposingRegionChangeEvent implements EditEvent {
+class ComposingRegionChangeEvent extends EditEvent {
   const ComposingRegionChangeEvent({
     required this.oldComposingRegion,
     required this.newComposingRegion,
@@ -389,6 +433,9 @@ class ComposingRegionChangeEvent implements EditEvent {
 
   final DocumentRange? oldComposingRegion;
   final DocumentRange? newComposingRegion;
+
+  @override
+  String describe() => "Composing - ${newComposingRegion ?? "empty"}";
 
   @override
   String toString() => "[ComposingRegionChangeEvent] - New composing region: $newComposingRegion";
@@ -479,10 +526,13 @@ class ChangeComposingRegionRequest implements EditRequest {
   int get hashCode => composingRegion.hashCode;
 }
 
-class ChangeComposingRegionCommand implements EditCommand {
+class ChangeComposingRegionCommand extends EditCommand {
   ChangeComposingRegionCommand(this.composingRegion);
 
   final DocumentRange? composingRegion;
+
+  @override
+  HistoryBehavior get historyBehavior => HistoryBehavior.undoable;
 
   @override
   void execute(EditContext context, CommandExecutor executor) {
@@ -522,7 +572,7 @@ class ChangeInteractionModeRequest implements EditRequest {
   int get hashCode => isInteractionModeDesired.hashCode;
 }
 
-class ChangeInteractionModeCommand implements EditCommand {
+class ChangeInteractionModeCommand extends EditCommand {
   ChangeInteractionModeCommand({
     required this.isInteractionModeDesired,
   });
@@ -530,7 +580,31 @@ class ChangeInteractionModeCommand implements EditCommand {
   final bool isInteractionModeDesired;
 
   @override
+  HistoryBehavior get historyBehavior => HistoryBehavior.nonHistorical;
+
+  @override
   void execute(EditContext context, CommandExecutor executor) {
     context.find<MutableDocumentComposer>(Editor.composerKey).setIsInteractionMode(isInteractionModeDesired);
+  }
+}
+
+class RemoveComposerPreferenceStylesRequest implements EditRequest {
+  const RemoveComposerPreferenceStylesRequest(this.stylesToRemove);
+
+  final Set<Attribution> stylesToRemove;
+}
+
+class RemoveComposerPreferenceStylesCommand extends EditCommand {
+  RemoveComposerPreferenceStylesCommand(this._stylesToRemove);
+
+  final Set<Attribution> _stylesToRemove;
+
+  @override
+  final historyBehavior = HistoryBehavior.undoable;
+
+  @override
+  void execute(EditContext context, CommandExecutor executor) {
+    final composer = context.find<MutableDocumentComposer>(Editor.composerKey);
+    composer.preferences.removeStyles(_stylesToRemove);
   }
 }

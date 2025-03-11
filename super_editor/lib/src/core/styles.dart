@@ -1,5 +1,6 @@
 import 'package:attributed_text/attributed_text.dart';
 import 'package:flutter/painting.dart';
+import 'package:super_editor/src/infrastructure/attributed_text_styles.dart';
 
 import 'document.dart';
 
@@ -13,6 +14,7 @@ class Stylesheet {
     this.documentPadding,
     required this.rules,
     required this.inlineTextStyler,
+    this.inlineWidgetBuilders = const [],
     this.selectedTextColorStrategy,
   });
 
@@ -26,6 +28,10 @@ class Stylesheet {
   /// Styles all in-line text in the document.
   final AttributionStyleAdjuster inlineTextStyler;
 
+  /// Chain of inline widget builders, used to map [AttributedText] placeholders
+  /// to inline widgets.
+  final InlineWidgetBuilderChain inlineWidgetBuilders;
+
   /// The strategy that chooses the color for selected text.
   final SelectedTextColorStrategy? selectedTextColorStrategy;
 
@@ -35,6 +41,7 @@ class Stylesheet {
   Stylesheet copyWith({
     EdgeInsets? documentPadding,
     AttributionStyleAdjuster? inlineTextStyler,
+    InlineWidgetBuilderChain? inlineWidgetBuilders,
     SelectedTextColorStrategy? selectedTextColorStrategy,
     List<StyleRule> addRulesBefore = const [],
     List<StyleRule>? rules,
@@ -43,6 +50,7 @@ class Stylesheet {
     return Stylesheet(
       documentPadding: documentPadding ?? this.documentPadding,
       inlineTextStyler: inlineTextStyler ?? this.inlineTextStyler,
+      inlineWidgetBuilders: inlineWidgetBuilders ?? this.inlineWidgetBuilders,
       selectedTextColorStrategy: selectedTextColorStrategy ?? this.selectedTextColorStrategy,
       rules: [
         ...addRulesBefore,
@@ -207,7 +215,7 @@ class _FirstBlockMatcher implements _BlockMatcher {
 
   @override
   bool matches(Document document, DocumentNode node) {
-    return document.getNodeIndexById(node.id) == 0;
+    return document.getNodeById(node.id) == document.firstOrNull;
   }
 }
 
@@ -216,7 +224,7 @@ class _LastBlockMatcher implements _BlockMatcher {
 
   @override
   bool matches(Document document, DocumentNode node) {
-    return document.getNodeIndexById(node.id) == document.nodes.length - 1;
+    return document.getNodeById(node.id) == document.lastOrNull;
   }
 }
 
@@ -339,8 +347,29 @@ class Styles {
   /// Applies a [TextAlign] to a text node.
   static const String textAlign = 'textAlign';
 
+  /// Applies an [UnderlineStyle] to the composing region, e.g., the word
+  /// the user is currently editing on mobile.
+  static const String composingRegionUnderlineStyle = 'composingRegionUnderlineStyle';
+
+  /// Whether to show an underline beneath the text that is currently in
+  /// the composing region.
+  ///
+  /// It's common for Android to show an underline beneath the composing region.
+  /// Showing an underline may not be expected on desktop. With this property app
+  /// developers can make that choice for themselves.
+  static const String showComposingRegionUnderline = 'showComposingRegionUnderline';
+
+  /// Applies an [UnderlineStyle] to all spelling errors in a text node.
+  static const String spellingErrorUnderlineStyle = 'spellingErrorUnderlineStyle';
+
+  /// Applies an [UnderlineStyle] to all grammar errors in a text node.
+  static const String grammarErrorUnderlineStyle = 'grammarErrorUnderlineStyle';
+
   /// Applies a [AttributionStyleAdjuster] to a text node.
   static const String inlineTextStyler = 'inlineTextStyler';
+
+  /// Applies a [InlineWidgetBuilderChain] to text-based components.
+  static const String inlineWidgetBuilders = 'inlineWidgetBuilders';
 
   /// Applies a [Color] to the dot of an unordered list item.
   static const String dotColor = 'dotColor';

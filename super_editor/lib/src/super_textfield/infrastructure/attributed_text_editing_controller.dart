@@ -172,10 +172,10 @@ class AttributedTextEditingController with ChangeNotifier {
 
       // Ensure that the existing selection does not overshoot
       // the end of the new text value
-      if (_selection.end > _text.text.length) {
+      if (_selection.end > _text.length) {
         _selection = _selection.copyWith(
-          baseOffset: _selection.affinity == TextAffinity.downstream ? _selection.baseOffset : _text.text.length,
-          extentOffset: _selection.affinity == TextAffinity.downstream ? _text.text.length : _selection.extentOffset,
+          baseOffset: _selection.affinity == TextAffinity.downstream ? _selection.baseOffset : _text.length,
+          extentOffset: _selection.affinity == TextAffinity.downstream ? _text.length : _selection.extentOffset,
         );
       }
 
@@ -345,7 +345,7 @@ class AttributedTextEditingController with ChangeNotifier {
         _moveSelectionForInsertion(
           selection: _selection,
           insertIndex: insertIndex,
-          newTextLength: newText.text.length,
+          newTextLength: newText.length,
         );
 
     update(
@@ -429,7 +429,7 @@ class AttributedTextEditingController with ChangeNotifier {
       startOffset: selection.baseOffset,
     );
     final updatedSelection = TextSelection.collapsed(
-      offset: selection.baseOffset + attributedReplacementText.text.length,
+      offset: selection.baseOffset + attributedReplacementText.length,
     );
 
     update(
@@ -491,7 +491,7 @@ class AttributedTextEditingController with ChangeNotifier {
         newSelection ?? _moveSelectionForDeletion(selection: selection, deleteFrom: from, deleteTo: to);
     updatedText = updatedText.insert(textToInsert: newText, startOffset: from);
     updatedSelection = newSelection ??
-        _moveSelectionForInsertion(selection: updatedSelection, insertIndex: from, newTextLength: newText.text.length);
+        _moveSelectionForInsertion(selection: updatedSelection, insertIndex: from, newTextLength: newText.length);
 
     text = updatedText;
     selection = updatedSelection;
@@ -515,7 +515,7 @@ class AttributedTextEditingController with ChangeNotifier {
       return;
     }
 
-    final previousCharacterOffset = getCharacterStartBounds(_text.text, selection.extentOffset);
+    final previousCharacterOffset = getCharacterStartBounds(_text.toPlainText(), selection.extentOffset);
 
     delete(
       from: previousCharacterOffset,
@@ -539,7 +539,7 @@ class AttributedTextEditingController with ChangeNotifier {
       return;
     }
 
-    final nextCharacterOffset = getCharacterEndBounds(_text.text, selection.extentOffset);
+    final nextCharacterOffset = getCharacterEndBounds(_text.toPlainText(), selection.extentOffset);
 
     delete(
       from: selection.extentOffset,
@@ -655,17 +655,36 @@ class AttributedTextEditingController with ChangeNotifier {
     notifyListeners();
   }
 
+  @Deprecated('Use text.computeInlineSpan() instead, which adds support for inline widgets.')
   TextSpan buildTextSpan(AttributionStyleBuilder styleBuilder) {
     return text.computeTextSpan(styleBuilder);
   }
 
-  void clear() {
+  /// Clears the text, composing attributions, composing region, and moves
+  /// the collapsed selection to the start of the now empty text controller.
+  void clearText() {
+    _text = AttributedText();
+    _selection = const TextSelection.collapsed(offset: 0);
+    _composingAttributions.clear();
+    _composingRegion = TextRange.empty;
+
+    notifyListeners();
+  }
+
+  /// Clears the text, selection, composing attributions, and composing region.
+  void clearTextAndSelection() {
     _text = AttributedText();
     _selection = const TextSelection.collapsed(offset: -1);
     _composingAttributions.clear();
     _composingRegion = TextRange.empty;
 
     notifyListeners();
+  }
+
+  /// Clears the text, selection, composing attributions, and composing region.
+  @Deprecated('This will be removed in a future release. Use clearText or clearTextAndSelection instead')
+  void clear() {
+    clearTextAndSelection();
   }
 
   //------ START: Methods moved here from extension methods ---------
@@ -676,7 +695,7 @@ class AttributedTextEditingController with ChangeNotifier {
     }
 
     Clipboard.setData(ClipboardData(
-      text: selection.textInside(text.text),
+      text: selection.textInside(text.toPlainText()),
     ));
   }
 
@@ -754,7 +773,7 @@ class AttributedTextEditingController with ChangeNotifier {
     }
 
     if (movementModifier == MovementModifier.word) {
-      final plainText = text.text;
+      final plainText = text.toPlainText();
 
       int newExtent = selection.extentOffset;
       newExtent -= 1; // we always want to jump at least 1 character.
@@ -769,7 +788,7 @@ class AttributedTextEditingController with ChangeNotifier {
       return;
     }
 
-    final newExtent = text.text.moveOffsetUpstreamByCharacter(selection.extentOffset) ?? 0;
+    final newExtent = text.toPlainText().moveOffsetUpstreamByCharacter(selection.extentOffset) ?? 0;
     selection = TextSelection(
       baseOffset: expandSelection ? selection.baseOffset : newExtent,
       extentOffset: newExtent,
@@ -798,7 +817,7 @@ class AttributedTextEditingController with ChangeNotifier {
       final endOfLine = textLayout.getPositionAtEndOfLine(TextPosition(offset: selection.extentOffset));
 
       final endPosition = TextPosition(offset: text.length);
-      final plainText = text.text;
+      final plainText = text.toPlainText();
 
       // Note: we compare offset values because we don't care if the affinitys are equal
       final isAutoWrapLine = endOfLine.offset != endPosition.offset && (plainText[endOfLine.offset] != '\n');
@@ -826,7 +845,7 @@ class AttributedTextEditingController with ChangeNotifier {
 
     if (movementModifier == MovementModifier.word) {
       final extentPosition = selection.extent;
-      final plainText = text.text;
+      final plainText = text.toPlainText();
 
       int newExtent = extentPosition.offset;
       newExtent += 1; // we always want to jump at least 1 character.
@@ -841,7 +860,7 @@ class AttributedTextEditingController with ChangeNotifier {
       return;
     }
 
-    final newExtent = text.text.moveOffsetDownstreamByCharacter(selection.extentOffset) ?? text.length;
+    final newExtent = text.toPlainText().moveOffsetDownstreamByCharacter(selection.extentOffset) ?? text.length;
     selection = TextSelection(
       baseOffset: expandSelection ? selection.baseOffset : newExtent,
       extentOffset: newExtent,
@@ -903,11 +922,11 @@ class AttributedTextEditingController with ChangeNotifier {
     if (direction == TextAffinity.upstream) {
       // Delete the character before the caret
       deleteEndIndex = selection.extentOffset;
-      deleteStartIndex = getCharacterStartBounds(text.text, deleteEndIndex);
+      deleteStartIndex = getCharacterStartBounds(text.toPlainText(), deleteEndIndex);
     } else {
       // Delete the character after the caret
       deleteStartIndex = selection.extentOffset;
-      deleteEndIndex = getCharacterEndBounds(text.text, deleteStartIndex);
+      deleteEndIndex = getCharacterEndBounds(text.toPlainText(), deleteStartIndex);
     }
 
     delete(

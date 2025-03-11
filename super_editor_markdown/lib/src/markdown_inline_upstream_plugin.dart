@@ -66,7 +66,7 @@ const defaultUpstreamInlineMarkdownParsers = [
 /// Parsing of links is handled differently than all other upstream syntax. Links use a fairly
 /// complicated syntax, so they're identified with a regular expression. All other upstream
 /// inline syntaxes are parsed character by character, moving upstream from the caret position.
-class MarkdownInlineUpstreamSyntaxReaction implements EditReaction {
+class MarkdownInlineUpstreamSyntaxReaction extends EditReaction {
   const MarkdownInlineUpstreamSyntaxReaction(this._parsers);
 
   final List<UpstreamMarkdownInlineSyntax> _parsers;
@@ -153,6 +153,10 @@ class MarkdownInlineUpstreamSyntaxReaction implements EditReaction {
       return const [];
     }
 
+    final newCaretPosition = DocumentPosition(
+      nodeId: editedNode.id,
+      nodePosition: TextNodePosition(offset: markdownRun.start + markdownRun.replacementText.length),
+    );
     return [
       // Delete the whole run of Markdown text, e.g., "**my bold**".
       DeleteContentRequest(
@@ -179,13 +183,16 @@ class MarkdownInlineUpstreamSyntaxReaction implements EditReaction {
       // were removed.
       ChangeSelectionRequest(
         DocumentSelection.collapsed(
-          position: DocumentPosition(
-            nodeId: editedNode.id,
-            nodePosition: TextNodePosition(offset: markdownRun.start + markdownRun.replacementText.length),
-          ),
+          position: newCaretPosition,
         ),
         SelectionChangeType.alteredContent,
         SelectionReason.contentChange,
+      ),
+      ChangeComposingRegionRequest(
+        DocumentRange(
+          start: newCaretPosition,
+          end: newCaretPosition,
+        ),
       ),
     ];
   }
@@ -251,7 +258,7 @@ class _UpstreamInlineMarkdownParser {
     // Start visiting upstream characters by visiting the first character
     // and checking for possible syntaxes.
     for (final parser in parsers) {
-      final markdownToken = parser.startWith(attributedText.text[offset], offset);
+      final markdownToken = parser.startWith(attributedText[offset] as String, offset);
       if (markdownToken != null) {
         _possibleSyntaxes.add(markdownToken);
       }
@@ -263,7 +270,7 @@ class _UpstreamInlineMarkdownParser {
 
       // Update all existing possible syntaxes and remove any possible syntaxes
       // that are now invalid due to the new character.
-      _updatePossibleSyntaxes(attributedText.text[offset], offset);
+      _updatePossibleSyntaxes(attributedText[offset] as String, offset);
 
       // Store any successful parsers on a stack. We keep searching after successful
       // parsing because some parsers are essentially supersets of others, e.g., "*"
@@ -284,7 +291,7 @@ class _UpstreamInlineMarkdownParser {
         //
         // Finding a completed syntax isn't enough. We need to ensure that the
         // immediate upstream character before the syntax doesn't invalidate it.
-        final upstreamCharacter = attributedText.text[offset - 1];
+        final upstreamCharacter = attributedText[offset - 1] as String;
         successfulParsers.removeWhere((parser) => !parser.canFollowCharacter(upstreamCharacter));
       }
     }
@@ -310,21 +317,21 @@ class _UpstreamInlineMarkdownParser {
       return null;
     }
 
-    final characterAtCaret = attributedText.text[caretOffset - 1]; // -1 because caret sits after character
+    final characterAtCaret = attributedText[caretOffset - 1] as String; // -1 because caret sits after character
     if (characterAtCaret != " ") {
       // Don't linkify unless the user just inserted a space after the token.
       return null;
     }
 
     final endOfTokenOffset = caretOffset - 2;
-    if (attributedText.text[endOfTokenOffset] != ")") {
+    if (attributedText[endOfTokenOffset] != ")") {
       // All links end with a ")", therefore we know the upstream token
       // isn't a link. Short-circuit return.
       return null;
     }
 
     final markdownLinkRegex = RegExp(r'\[([\w\s\d]+)]\(((?:|https?://)[\w\d./?=#]+)\)');
-    final matches = markdownLinkRegex.allMatches(attributedText.text);
+    final matches = markdownLinkRegex.allMatches(attributedText.toPlainText());
     if (matches.isEmpty) {
       // Didn't find any links.
       return null;
@@ -617,7 +624,7 @@ class StyleUpstreamMarkdownToken implements UpstreamMarkdownToken {
       _triggerIndex - syntaxLength + 1,
     );
     for (final attribution in newStyles) {
-      appliedText.addAttribution(attribution, SpanRange(0, appliedText.text.length - 1));
+      appliedText.addAttribution(attribution, SpanRange(0, appliedText.length - 1));
     }
 
     return appliedText;

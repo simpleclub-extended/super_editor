@@ -17,10 +17,22 @@ import 'package:flutter/widgets.dart';
 /// content.
 ///
 /// To edit the content of a document, see [DocumentEditor].
-abstract class Document {
-  /// Returns all of the content within the document as a list
-  /// of [DocumentNode]s.
-  List<DocumentNode> get nodes;
+abstract class Document implements Iterable<DocumentNode> {
+  /// The number of [DocumentNode]s in this [Document].
+  int get nodeCount;
+
+  /// Returns `true` if this [Document] has zero nodes, or `false` if it
+  /// has `1+ nodes.
+  @override
+  bool get isEmpty;
+
+  /// Returns the first [DocumentNode] in this [Document], or `null` if this
+  /// [Document] is empty.
+  DocumentNode? get firstOrNull;
+
+  /// Returns the last [DocumentNode] in this [Document], or `null` if this
+  /// [Document] is empty.
+  DocumentNode? get lastOrNull;
 
   /// Returns the [DocumentNode] with the given [nodeId], or [null]
   /// if no such node exists.
@@ -43,13 +55,27 @@ abstract class Document {
   /// given [node] in this [Document], or null if the given [node]
   /// is the first node, or the given [node] does not exist in this
   /// [Document].
+  @Deprecated("Use getNodeBeforeById() instead")
   DocumentNode? getNodeBefore(DocumentNode node);
+
+  /// Returns the [DocumentNode] that appears immediately before the
+  /// node with the given [nodeId] in this [Document], or `null` if
+  /// the matching node is the first node in the document, or no such
+  /// node exists.
+  DocumentNode? getNodeBeforeById(String nodeId);
 
   /// Returns the [DocumentNode] that appears immediately after the
   /// given [node] in this [Document], or null if the given [node]
   /// is the last node, or the given [node] does not exist in this
   /// [Document].
+  @Deprecated("Use getNodeAfterById() instead")
   DocumentNode? getNodeAfter(DocumentNode node);
+
+  /// Returns the [DocumentNode] that appears immediately after the
+  /// node with the given [nodeId] in this [Document], or `null` if
+  /// the matching node is the last node in the document, or no such
+  /// node exists.
+  DocumentNode? getNodeAfterById(String nodeId);
 
   /// Returns the [DocumentNode] at the given [position], or [null] if
   /// no such node exists in this [Document].
@@ -99,22 +125,30 @@ class DocumentChangeLog {
 
 /// Marker interface for all document changes.
 abstract class DocumentChange {
-  // Marker interface
+  const DocumentChange();
+
+  /// Describes this change in a human-readable way.
+  String describe() => toString();
 }
 
 /// A [DocumentChange] that impacts a single, specified [DocumentNode] with [nodeId].
-abstract class NodeDocumentChange implements DocumentChange {
+abstract class NodeDocumentChange extends DocumentChange {
+  const NodeDocumentChange();
+
   String get nodeId;
 }
 
 /// A new [DocumentNode] was inserted in the [Document].
-class NodeInsertedEvent implements NodeDocumentChange {
+class NodeInsertedEvent extends NodeDocumentChange {
   const NodeInsertedEvent(this.nodeId, this.insertionIndex);
 
   @override
   final String nodeId;
 
   final int insertionIndex;
+
+  @override
+  String describe() => "Inserted node: $nodeId";
 
   @override
   String toString() => "NodeInsertedEvent ($nodeId)";
@@ -132,7 +166,7 @@ class NodeInsertedEvent implements NodeDocumentChange {
 }
 
 /// A [DocumentNode] was moved to a new index.
-class NodeMovedEvent implements NodeDocumentChange {
+class NodeMovedEvent extends NodeDocumentChange {
   const NodeMovedEvent({
     required this.nodeId,
     required this.from,
@@ -143,6 +177,9 @@ class NodeMovedEvent implements NodeDocumentChange {
   final String nodeId;
   final int from;
   final int to;
+
+  @override
+  String describe() => "Moved node ($nodeId): $from -> $to";
 
   @override
   String toString() => "NodeMovedEvent ($nodeId: $from -> $to)";
@@ -161,13 +198,16 @@ class NodeMovedEvent implements NodeDocumentChange {
 }
 
 /// A [DocumentNode] was removed from the [Document].
-class NodeRemovedEvent implements NodeDocumentChange {
+class NodeRemovedEvent extends NodeDocumentChange {
   const NodeRemovedEvent(this.nodeId, this.removedNode);
 
   @override
   final String nodeId;
 
   final DocumentNode removedNode;
+
+  @override
+  String describe() => "Removed node: $nodeId";
 
   @override
   String toString() => "NodeRemovedEvent ($nodeId)";
@@ -185,11 +225,14 @@ class NodeRemovedEvent implements NodeDocumentChange {
 /// A node change might signify a content change, such as text changing in a paragraph, or
 /// it might signify a node changing its type of content, such as converting a paragraph
 /// to an image.
-class NodeChangeEvent implements NodeDocumentChange {
+class NodeChangeEvent extends NodeDocumentChange {
   const NodeChangeEvent(this.nodeId);
 
   @override
   final String nodeId;
+
+  @override
+  String describe() => "Changed node: $nodeId";
 
   @override
   String toString() => "NodeChangeEvent ($nodeId)";
@@ -223,7 +266,7 @@ class DocumentPosition {
   ///
   /// ```dart
   /// final documentPosition = DocumentPosition(
-  ///   nodeId: documentEditor.document.nodes.first.id,
+  ///   nodeId: documentEditor.document.first.id,
   ///   nodePosition: TextNodePosition(offset: 1),
   /// );
   /// ```
@@ -279,9 +322,49 @@ class DocumentPosition {
 }
 
 /// A single content node within a [Document].
-abstract class DocumentNode implements ChangeNotifier {
+@immutable
+abstract class DocumentNode {
+  DocumentNode({
+    Map<String, dynamic>? metadata,
+  }) {
+    // We construct a new map here, instead of directly assigning from the
+    // constructor, because we need to make sure that `_metadata` is mutable.
+    _metadata = {
+      if (metadata != null) //
+        ...metadata,
+    };
+  }
+
+  /// Adds [addedMetadata] to this nodes [metadata].
+  ///
+  /// This protected method is intended to be used only during constructor
+  /// initialization by subclasses, so that subclasses can inject needed metadata
+  /// during construction time. This special method is provided because [DocumentNode]s
+  /// are otherwise immutable.
+  ///
+  /// For example, a `ParagraphNode` might need to ensure that its block type
+  /// metadata is set to `paragraphAttribution`:
+  ///
+  ///     ParagraphNode({
+  ///       required super.id,
+  ///       required super.text,
+  ///       this.indent = 0,
+  ///       super.metadata,
+  ///     }) {
+  ///       if (getMetadataValue("blockType") == null) {
+  ///         initAddToMetadata({"blockType": paragraphAttribution});
+  ///       }
+  ///     }
+  ///
+  @protected
+  void initAddToMetadata(Map<String, dynamic> addedMetadata) {
+    _metadata.addAll(addedMetadata);
+  }
+
   /// ID that is unique within a [Document].
   String get id;
+
+  bool get isDeletable => _metadata[NodeMetadata.isDeletable] != false;
 
   /// Returns the [NodePosition] that corresponds to the beginning
   /// of content in this node.
@@ -294,6 +377,11 @@ abstract class DocumentNode implements ChangeNotifier {
   ///
   /// For example, a [ParagraphNode] would return [TextNodePosition(offset: text.length)].
   NodePosition get endPosition;
+
+  /// Returns `true` if this [DocumentNode] contains the given [position], or `false`
+  /// if the [position] doesn't sit within this node, or if the [position] type doesn't
+  /// apply to this [DocumentNode].
+  bool containsPosition(Object position);
 
   /// Inspects [position1] and [position2] and returns the one that's
   /// positioned further upstream in this [DocumentNode].
@@ -342,23 +430,9 @@ abstract class DocumentNode implements ChangeNotifier {
   }
 
   /// Returns all metadata attached to this [DocumentNode].
-  Map<String, dynamic> get metadata => _metadata;
+  Map<String, dynamic> get metadata => Map.from(_metadata);
 
-  final Map<String, dynamic> _metadata = {};
-
-  /// Sets all metadata for this [DocumentNode], removing all
-  /// existing values.
-  set metadata(Map<String, dynamic>? newMetadata) {
-    if (const DeepCollectionEquality().equals(_metadata, newMetadata)) {
-      return;
-    }
-
-    _metadata.clear();
-    if (newMetadata != null) {
-      _metadata.addAll(newMetadata);
-    }
-    notifyListeners();
-  }
+  late final Map<String, dynamic> _metadata;
 
   /// Returns `true` if this node has a non-null metadata value for
   /// the given metadata [key], and returns `false`, otherwise.
@@ -367,16 +441,16 @@ abstract class DocumentNode implements ChangeNotifier {
   /// Returns this node's metadata value for the given [key].
   dynamic getMetadataValue(String key) => _metadata[key];
 
-  /// Sets this node's metadata value for the given [key] to the given
-  /// [value], and notifies node listeners that a change has occurred.
-  void putMetadataValue(String key, dynamic value) {
-    if (_metadata[key] == value) {
-      return;
-    }
+  /// Returns a copy of this [DocumentNode] with [newProperties] added to
+  /// the node's metadata.
+  ///
+  /// If [newProperties] contains keys that already exist in this node's
+  /// metadata, the existing properties are overwritten by [newProperties].
+  DocumentNode copyWithAddedMetadata(Map<String, dynamic> newProperties);
 
-    _metadata[key] = value;
-    notifyListeners();
-  }
+  /// Returns a copy of this [DocumentNode], replacing its existing
+  /// metadata with [newMetadata].
+  DocumentNode copyAndReplaceMetadata(Map<String, dynamic> newMetadata);
 
   /// Returns a copy of this node's metadata.
   Map<String, dynamic> copyMetadata() => Map.from(_metadata);
@@ -425,4 +499,21 @@ abstract class NodePosition {
   /// text offset, but have different affinities, returns `true` from [isEquivalentTo],
   /// even though [==] returns `false`.
   bool isEquivalentTo(NodePosition other);
+}
+
+/// Keys to access metadata on a [DocumentNode].
+class NodeMetadata {
+  /// Applies an [Attribution] to the node.
+  static const String blockType = 'blockType';
+
+  /// Whether or not the node is deletable.
+  ///
+  /// A non-deletable node cannot be removed from the document by user
+  /// interaction. For exammple, selecting a non-deletable node and pressing
+  /// backspace has no effect.
+  ///
+  /// Apps can still remove non-deletable nodes by issuing a `DeleteNodeRequest`.
+  ///
+  /// If the node doesn't have this metadata, it is assumed to be deletable.
+  static const String isDeletable = 'isDeletable';
 }

@@ -1,6 +1,5 @@
 import 'package:dart_quill_delta/dart_quill_delta.dart';
 import 'package:super_editor/super_editor.dart';
-import 'package:super_editor_quill/src/content/multimedia.dart';
 import 'package:super_editor_quill/src/parsing/block_formats.dart';
 import 'package:super_editor_quill/src/parsing/inline_formats.dart';
 
@@ -14,46 +13,130 @@ import 'package:super_editor_quill/src/parsing/inline_formats.dart';
 ///       ]
 ///     }
 ///
+/// {@template parse_deltas_custom_editor}
+/// An [Editor] is used to insert content in the final document. For typical Delta
+/// formats, the default configuration for an [Editor] should work fine, and that's
+/// what this method uses. However, some apps need to run custom commands, especially
+/// for custom inline embeds. In that case, you can provide a [customEditor], which
+/// is configured however you'd like. The [customEditor] must contain a [MutableDocument]
+/// and a [MutableComposer]. The document must be empty.
+/// {@endtemplate}
+///
+/// {@template merge_consecutive_blocks}
+/// ### Merging consecutive blocks
+///
+/// The Delta format creates some ambiguity around when multiple lines should
+/// be combined into a single block vs one block per line. E.g., a code block
+/// with multiple lines of code vs a series of independent code blocks.
+///
+/// [blockMergeRules] explicitly tells the parser which consecutive
+/// [DocumentNode]s should be merged together when not separated by an unstyled
+/// newline in the given deltas.
+///
+/// Example of consecutive code blocks that would be merged (if requested):
+///
+///     [
+///       { "insert": "Code line one" },
+///       { "insert": "\n", "attributed": { "code-block": "plain"} },
+///       { "insert": "Code line two" },
+///       { "insert": "\n", "attributed": { "code-block": "plain"} },
+///     ]
+///
+/// Example of code blocks, separated by an unstyled newline, that wouldn't be merged:
+///
+///     [
+///       { "insert": "Code line one" },
+///       { "insert": "\n", "attributed": { "code-block": "plain"} },
+///       { "insert": "\n" },
+///       { "insert": "Code line two" },
+///       { "insert": "\n", "attributed": { "code-block": "plain"} },
+///     ]
+///
+/// {@endtemplate}
+///
 /// For more information about the Quill Delta format, see the official
 /// documentation: https://quilljs.com/docs/delta/
 MutableDocument parseQuillDeltaDocument(
   Map<String, dynamic> deltaDocument, {
+  Editor? customEditor,
   List<BlockDeltaFormat> blockFormats = defaultBlockFormats,
+  List<DeltaBlockMergeRule> blockMergeRules = defaultBlockMergeRules,
   List<InlineDeltaFormat> inlineFormats = defaultInlineFormats,
+  List<InlineEmbedFormat> inlineEmbedFormats = const [],
+  List<BlockDeltaFormat> embedBlockFormats = defaultEmbedBockFormats,
 }) {
-  return parseQuillDeltaOps(deltaDocument["ops"], inlineFormats: inlineFormats);
+  return parseQuillDeltaOps(
+    deltaDocument["ops"],
+    customEditor: customEditor,
+    blockMergeRules: blockMergeRules,
+    blockFormats: blockFormats,
+    inlineFormats: inlineFormats,
+    inlineEmbedFormats: inlineEmbedFormats,
+    embedBlockFormats: embedBlockFormats,
+  );
 }
 
-/// Parses a list Quill Delta operations (as JSON) into a [MutableDocument].
+/// Parses a list of Quill Delta operations (as JSON) into a [MutableDocument].
 ///
 /// This parser is the same as [parseQuillDeltaDocument] except that this method
 /// directly accepts the operations list instead of the whole document map. This
 /// method is provided for convenience because in some situations only the
 /// operations are exchanged, rather than the whole document object.
+///
+/// {@macro parse_deltas_custom_editor}
+///
+/// {@macro merge_consecutive_blocks}
 MutableDocument parseQuillDeltaOps(
   List<dynamic> deltaOps, {
+  Editor? customEditor,
   List<BlockDeltaFormat> blockFormats = defaultBlockFormats,
+  List<DeltaBlockMergeRule> blockMergeRules = defaultBlockMergeRules,
   List<InlineDeltaFormat> inlineFormats = defaultInlineFormats,
+  List<InlineEmbedFormat> inlineEmbedFormats = const [],
+  List<BlockDeltaFormat> embedBlockFormats = defaultEmbedBockFormats,
 }) {
   // Deserialize the delta operations JSON into a Dart data structure.
   final deltaDocument = Delta.fromJson(deltaOps);
 
-  // Create a new, empty Super Editor document.
-  final document = MutableDocument.empty();
-  final composer = MutableDocumentComposer();
-  final editor = Editor(
-    editables: {
-      Editor.documentKey: document,
-      Editor.composerKey: composer,
-    },
-    requestHandlers: List.from(defaultRequestHandlers),
-    // No reactions. Follow the delta operations exactly.
-    reactionPipeline: [],
-  );
+  late final MutableDocument document;
+  late final MutableDocumentComposer composer;
+  late final Editor editor;
+  if (customEditor != null) {
+    // Use the provided custom editor.
+    if (customEditor.context.maybeDocument == null) {
+      throw Exception("The provided customEditor must contain a MutableDocument in its editables.");
+    }
+    if (customEditor.context.maybeComposer == null) {
+      throw Exception("The provided customEditor must contain a MutableDocumentComposer in its editables.");
+    }
+
+    editor = customEditor;
+    document = editor.context.document;
+    composer = editor.context.composer;
+
+    if (document.nodeCount > 1 ||
+        document.first is! ParagraphNode ||
+        (document.first as ParagraphNode).text.length > 0) {
+      throw Exception("The customEditor document must be empty (contain a single, empty ParagraphNode).");
+    }
+  } else {
+    // Create a new, empty Super Editor document.
+    document = MutableDocument.empty();
+    composer = MutableDocumentComposer();
+    editor = Editor(
+      editables: {
+        Editor.documentKey: document,
+        Editor.composerKey: composer,
+      },
+      requestHandlers: List.from(defaultRequestHandlers),
+      // No reactions. Follow the delta operations exactly.
+      reactionPipeline: [],
+    );
+  }
 
   // Place the caret in the (only) empty paragraph so we can begin applying
   // deltas to the document.
-  final firstParagraph = document.nodes.first as ParagraphNode;
+  final firstParagraph = document.first as ParagraphNode;
   composer.setSelectionWithReason(
     DocumentSelection.collapsed(
       position: DocumentPosition(
@@ -68,7 +151,14 @@ MutableDocument parseQuillDeltaOps(
   // process the Super Editor document will reflect the desired Quill Delta
   // document state.
   for (final delta in deltaDocument.operations) {
-    delta.applyToDocument(editor, blockFormats: blockFormats, inlineFormats: inlineFormats);
+    delta.applyToDocument(
+      editor,
+      blockFormats: blockFormats,
+      blockMergeRules: blockMergeRules,
+      inlineFormats: inlineFormats,
+      inlineEmbedFormats: inlineEmbedFormats,
+      embedBlockFormats: embedBlockFormats,
+    );
   }
 
   return document;
@@ -104,6 +194,15 @@ const defaultInlineFormats = [
   LinkDeltaFormat(),
 ];
 
+/// The standard block-level embed formats that are parsed from Quill Deltas,
+/// e.g., images, audio, video.
+const defaultEmbedBockFormats = [
+  ImageEmbedBlockDeltaFormat(),
+  VideoEmbedBlockDeltaFormat(),
+  AudioEmbedBlockDeltaFormat(),
+  FileEmbedBlockDeltaFormat(),
+];
+
 /// An extension on Quill Delta [Operation]s that adds the ability for an operation to
 /// apply itself to a Super Editor document through an [Editor].
 extension OperationParser on Operation {
@@ -118,7 +217,10 @@ extension OperationParser on Operation {
   void applyToDocument(
     Editor editor, {
     required List<BlockDeltaFormat> blockFormats,
+    List<DeltaBlockMergeRule> blockMergeRules = defaultBlockMergeRules,
     required List<InlineDeltaFormat> inlineFormats,
+    required List<InlineEmbedFormat> inlineEmbedFormats,
+    required List<BlockDeltaFormat> embedBlockFormats,
   }) {
     final document = editor.context.find<MutableDocument>(Editor.documentKey);
     final composer = editor.context.find<MutableDocumentComposer>(Editor.composerKey);
@@ -131,8 +233,69 @@ extension OperationParser on Operation {
         }
         if (data is Object) {
           // This is an embed insertion delta.
-          _doInsertMedia(editor, composer);
+          _doInsertMedia(editor, composer, inlineEmbedFormats, embedBlockFormats);
         }
+
+        // Merge consecutive blocks as desired by the given node types.
+        final document = editor.context.find<MutableDocument>(Editor.documentKey);
+        if (document.nodeCount < 3) {
+          // Minimum of 3 nodes: block, block, newline.
+          break;
+        }
+
+        // Beginning with the last non-empty node, move backwards, collecting all
+        // nodes that should be merged into one.
+        final nodeBeforeTrailingNewline = document.getNodeBefore(document.last)!;
+        final blockTypeToMerge = nodeBeforeTrailingNewline.getMetadataValue(NodeMetadata.blockType);
+        var blocksToMerge = <ParagraphNode>[];
+        for (int i = document.nodeCount - 2; i >= 0; i -= 1) {
+          final node = document.getNodeAt(i)!;
+          if (node is! ParagraphNode) {
+            break;
+          }
+
+          var shouldMerge = false;
+          for (final rule in blockMergeRules) {
+            final ruleShouldMerge = rule.shouldMerge(blockTypeToMerge, node.getMetadataValue(NodeMetadata.blockType));
+            if (ruleShouldMerge == true) {
+              // The rule says we definitely want to merge.
+              shouldMerge = true;
+              break;
+            }
+            if (ruleShouldMerge == false) {
+              // The rule says we definitely don't want to merge.
+              shouldMerge = false;
+              break;
+            }
+          }
+          if (!shouldMerge) {
+            // Our merge rules don't want us to merge this node.
+            break;
+          }
+
+          blocksToMerge.add(node);
+        }
+
+        if (blocksToMerge.length < 2) {
+          break;
+        }
+
+        blocksToMerge = blocksToMerge.reversed.toList();
+        final mergeNode = blocksToMerge.first;
+        var nodeContentToMove = blocksToMerge[1].text.insertString(textToInsert: "\n", startOffset: 0);
+        for (int i = 2; i < blocksToMerge.length; i += 1) {
+          nodeContentToMove =
+              nodeContentToMove.copyAndAppend(blocksToMerge[i].text.insertString(textToInsert: "\n", startOffset: 0));
+        }
+
+        editor.execute([
+          InsertAttributedTextRequest(
+            DocumentPosition(nodeId: mergeNode.id, nodePosition: mergeNode.endPosition),
+            nodeContentToMove,
+          ),
+          for (int i = 1; i < blocksToMerge.length; i += 1) //
+            DeleteNodeRequest(nodeId: blocksToMerge[i].id),
+        ]);
 
       case DeltaOperationType.retain:
         final count = data as int;
@@ -184,6 +347,13 @@ extension OperationParser on Operation {
       final blockChanges = blockFormat.applyTo(this, editor);
       if (blockChanges != null) {
         changeRequests.addAll(blockChanges);
+
+        // We found a format that handled this delta. Ignore the remaining
+        // formats.
+        //
+        // If a situation is found where multiple formats need to act on the same
+        // delta, please file an issue with an explanation.
+        break;
       }
     }
 
@@ -255,99 +425,73 @@ extension OperationParser on Operation {
     editor.execute(changeRequests);
   }
 
-  void _doInsertMedia(Editor editor, DocumentComposer composer) {
+  void _doInsertMedia(
+    Editor editor,
+    DocumentComposer composer,
+    List<InlineEmbedFormat> inlineEmbedFormats,
+    List<BlockDeltaFormat> embedBlockFormats,
+  ) {
     final content = data;
     if (content is! Map<String, dynamic>) {
-      // We don't know what this is.
+      // Quill Deltas expect embeds to be a map, but the data isn't a map.
       return;
     }
 
-    // Check if the selected node is an empty text node. If it is, we want to replace it
-    // with the media that we're inserting.
-    final document = editor.context.find<MutableDocument>(Editor.documentKey);
-    final selectedNodeId = composer.selection!.extent.nodeId;
-    final selectedNode = document.getNodeById(selectedNodeId);
-    final shouldReplaceSelectedNode = selectedNode is TextNode && selectedNode.text.text.isEmpty;
-
-    String? newNodeId;
-    String? mediaUrl;
-    DocumentNode? newNode;
-
-    if (content.containsKey("image")) {
-      // This insertion is for an image.
-      newNodeId = Editor.createNodeId();
-      mediaUrl = content["image"] as String;
-      newNode = ImageNode(
-        id: newNodeId,
-        imageUrl: mediaUrl,
-      );
-    }
-
-    if (content.containsKey("video")) {
-      // This insertion is for a video.
-      newNodeId = Editor.createNodeId();
-      mediaUrl = content["video"] as String;
-      newNode = VideoNode(
-        id: newNodeId,
-        url: mediaUrl,
-      );
-    }
-
-    if (content.containsKey("audio")) {
-      // This insertion is for a video.
-      newNodeId = Editor.createNodeId();
-      mediaUrl = content["audio"] as String;
-      newNode = AudioNode(
-        id: newNodeId,
-        url: mediaUrl,
-      );
-    }
-
-    if (content.containsKey("file")) {
-      // This insertion is for a video.
-      newNodeId = Editor.createNodeId();
-      mediaUrl = content["file"] as String;
-      newNode = FileNode(
-        id: newNodeId,
-        url: mediaUrl,
-      );
-    }
-
-    if (newNode == null) {
-      // We didn't find any media to insert.
+    // First, try to interpret this operation as an inline embed and insert it.
+    final didInlineInsert = _maybeInsertInlineEmbed(editor, composer, inlineEmbedFormats, content);
+    if (didInlineInsert) {
       return;
     }
 
-    // Insert the media in the document.
-    final newParagraphId = Editor.createNodeId();
-    editor.execute([
-      shouldReplaceSelectedNode
-          ? ReplaceNodeRequest(
-              existingNodeId: selectedNodeId,
-              newNode: newNode,
-            )
-          : InsertNodeAfterNodeRequest(
-              existingNodeId: composer.selection!.extent.nodeId,
-              newNode: newNode,
-            ),
-      InsertNodeAfterNodeRequest(
-        existingNodeId: newNodeId!,
-        newNode: ParagraphNode(
-          id: newParagraphId,
-          text: AttributedText(""),
-        ),
-      ),
-      ChangeSelectionRequest(
-        DocumentSelection.collapsed(
-          position: DocumentPosition(
-            nodeId: newParagraphId,
-            nodePosition: const TextNodePosition(offset: 0),
-          ),
-        ),
-        SelectionChangeType.insertContent,
-        SelectionReason.contentChange,
-      ),
-    ]);
+    // This operation wasn't a known inline embed. Try inserting as a block embed.
+    _maybeInsertBlockEmbed(editor, composer, embedBlockFormats);
+  }
+
+  /// Attempts to interpret this operation as an inline embed and insert it, returning `true`
+  /// if successful, or `false` if this operation isn't a known inline embed.
+  bool _maybeInsertInlineEmbed(
+    Editor editor,
+    DocumentComposer composer,
+    List<InlineEmbedFormat> inlineEmbedFormats,
+    Map<String, dynamic> data,
+  ) {
+    for (final inlineEmbedFormat in inlineEmbedFormats) {
+      final didInsert = inlineEmbedFormat.insert(editor, composer, data);
+      if (didInsert) {
+        // We found a format that handled this inline embed. Ignore the remaining
+        // formats.
+        //
+        // If a situation is found where multiple formats need to act on the same
+        // embed, please file an issue with an explanation.
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  /// Attempts to interpret this operation as a block embed and insert it, returning `true`
+  /// if successful, or `false` if this operation isn't a known block embed.
+  bool _maybeInsertBlockEmbed(
+    Editor editor,
+    DocumentComposer composer,
+    List<BlockDeltaFormat> embedBlockFormats,
+  ) {
+    for (final embedBlockFormat in embedBlockFormats) {
+      final editorOperations = embedBlockFormat.applyTo(this, editor);
+      if (editorOperations == null) {
+        // This block format doesn't apply to this operation. Check the next one.
+        continue;
+      }
+
+      // This block format parsed this operation and gave us a list of editor
+      // operations to insert the embed. Execute them and return.
+      editor.execute(editorOperations);
+      return true;
+    }
+
+    // This operation wasn't recognized as a block-level embed and nothing was deserialized.
+    return false;
   }
 
   /// Moves [count] units downstream from the current caret position.
@@ -373,7 +517,7 @@ extension OperationParser on Operation {
 
         // The caret wants to move beyond this paragraph.
         unitsToMove -= selectedNode.text.length - currentPosition.offset;
-        selectedNode = document.getNodeAfter(selectedNode)!;
+        selectedNode = document.getNodeAfterById(selectedNode.id)!;
         caretPosition = DocumentPosition(
           nodeId: selectedNode.id,
           nodePosition: selectedNode.beginningPosition,
@@ -392,7 +536,7 @@ extension OperationParser on Operation {
 
         // The deltas want to retain more beyond this node.
         unitsToMove -= 1;
-        selectedNode = document.getNodeAfter(selectedNode)!;
+        selectedNode = document.getNodeAfterById(selectedNode.id)!;
         caretPosition = DocumentPosition(
           nodeId: selectedNode.id,
           nodePosition: selectedNode.beginningPosition,
@@ -425,4 +569,40 @@ enum DeltaOperationType {
   insert,
   retain,
   delete,
+}
+
+/// The standard set of [DeltaBlockMergeRule]s used when parsing Quill Deltas.
+const defaultBlockMergeRules = [
+  MergeBlock(blockquoteAttribution),
+  MergeBlock(codeAttribution),
+];
+
+/// A rule that decides whether a given [DocumentNode] should be merged into
+/// the node before it, when creating a [Document] from Quill Deltas.
+///
+/// This is useful, for example, to place multiple lines of code within a
+/// single code block.
+abstract interface class DeltaBlockMergeRule {
+  /// Returns `true` if two consecutive blocks with the given types should merge,
+  /// `false` if they shouldn't, or `null` if this rule has no opinion about the merge.
+  bool? shouldMerge(Attribution block1, Attribution block2);
+}
+
+/// A [DeltaBlockMergeRule] that chooses to merge blocks whose type `==`
+/// the given block type.
+class MergeBlock implements DeltaBlockMergeRule {
+  const MergeBlock(this._blockType);
+
+  final Attribution _blockType;
+
+  @override
+  bool? shouldMerge(Attribution block1, Attribution block2) {
+    if (block1 == _blockType && block2 == _blockType) {
+      // Yes, try to merge them.
+      return true;
+    }
+
+    // This isn't our block type. We don't have an opinion.
+    return null;
+  }
 }

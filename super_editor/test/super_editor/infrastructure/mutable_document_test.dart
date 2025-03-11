@@ -72,9 +72,9 @@ void main() {
     group("getNodeIndexById returns the correct index", () {
       test("when creating a document", () {
         final document = _createThreeParagraphDoc();
-        final firstNode = document.nodes[0];
-        final secondNode = document.nodes[1];
-        final thirdNode = document.nodes[2];
+        final firstNode = document.getNodeAt(0)!;
+        final secondNode = document.getNodeAt(1)!;
+        final thirdNode = document.getNodeAt(2)!;
 
         // Ensure the indices are correct when creating the document.
         expect(document.getNodeIndexById(firstNode.id), 0);
@@ -84,8 +84,8 @@ void main() {
 
       test("when inserting a node at the beginning by index", () {
         final document = _createTwoParagraphDoc();
-        final firstNode = document.nodes[0];
-        final secondNode = document.nodes[1];
+        final firstNode = document.getNodeAt(0)!;
+        final secondNode = document.getNodeAt(1)!;
 
         // Insert a new node at the beginning.
         final thirdNode = ParagraphNode(
@@ -102,8 +102,8 @@ void main() {
 
       test("when inserting a node at the middle by index", () {
         final document = _createTwoParagraphDoc();
-        final firstNode = document.nodes[0];
-        final secondNode = document.nodes[1];
+        final firstNode = document.getNodeAt(0)!;
+        final secondNode = document.getNodeAt(1)!;
 
         // Insert a new node between firstNode and secondNode.
         final thirdNode = ParagraphNode(
@@ -120,8 +120,8 @@ void main() {
 
       test("when inserting a node at the end by index", () {
         final document = _createTwoParagraphDoc();
-        final firstNode = document.nodes[0];
-        final secondNode = document.nodes[1];
+        final firstNode = document.getNodeAt(0)!;
+        final secondNode = document.getNodeAt(1)!;
 
         // Insert a new node at the end.
         final thirdNode = ParagraphNode(
@@ -138,8 +138,8 @@ void main() {
 
       test("when inserting a node before the first node", () {
         final document = _createTwoParagraphDoc();
-        final firstNode = document.nodes[0];
-        final secondNode = document.nodes[1];
+        final firstNode = document.getNodeAt(0)!;
+        final secondNode = document.getNodeAt(1)!;
 
         // Insert a new node at the beginning.
         final thirdNode = ParagraphNode(
@@ -147,7 +147,7 @@ void main() {
           text: AttributedText("This is the third paragraph."),
         );
         document.insertNodeBefore(
-          existingNode: firstNode,
+          existingNodeId: firstNode.id,
           newNode: thirdNode,
         );
 
@@ -159,8 +159,8 @@ void main() {
 
       test("when inserting a node before the last node", () {
         final document = _createTwoParagraphDoc();
-        final firstNode = document.nodes[0];
-        final secondNode = document.nodes[1];
+        final firstNode = document.getNodeAt(0)!;
+        final secondNode = document.getNodeAt(1)!;
 
         // Insert a new node between the two nodes.
         final thirdNode = ParagraphNode(
@@ -168,7 +168,7 @@ void main() {
           text: AttributedText("This is the third paragraph."),
         );
         document.insertNodeBefore(
-          existingNode: secondNode,
+          existingNodeId: secondNode.id,
           newNode: thirdNode,
         );
 
@@ -180,8 +180,8 @@ void main() {
 
       test("when inserting a node after the first node", () {
         final document = _createTwoParagraphDoc();
-        final firstNode = document.nodes[0];
-        final secondNode = document.nodes[1];
+        final firstNode = document.getNodeAt(0)!;
+        final secondNode = document.getNodeAt(1)!;
 
         // Insert a new node between the two nodes.
         final thirdNode = ParagraphNode(
@@ -189,7 +189,7 @@ void main() {
           text: AttributedText("This is the third paragraph."),
         );
         document.insertNodeAfter(
-          existingNode: firstNode,
+          existingNodeId: firstNode.id,
           newNode: thirdNode,
         );
 
@@ -201,8 +201,8 @@ void main() {
 
       test("when inserting a node after the last node", () {
         final document = _createTwoParagraphDoc();
-        final firstNode = document.nodes[0];
-        final secondNode = document.nodes[1];
+        final firstNode = document.getNodeAt(0)!;
+        final secondNode = document.getNodeAt(1)!;
 
         // Insert a new node at the end.
         final thirdNode = ParagraphNode(
@@ -210,7 +210,7 @@ void main() {
           text: AttributedText("This is the third paragraph."),
         );
         document.insertNodeAfter(
-          existingNode: secondNode,
+          existingNodeId: secondNode.id,
           newNode: thirdNode,
         );
 
@@ -222,9 +222,9 @@ void main() {
 
       test("when moving a node from the beginning to the middle", () {
         final document = _createThreeParagraphDoc();
-        final firstNode = document.nodes[0];
-        final secondNode = document.nodes[1];
-        final thirdNode = document.nodes[2];
+        final firstNode = document.getNodeAt(0)!;
+        final secondNode = document.getNodeAt(1)!;
+        final thirdNode = document.getNodeAt(2)!;
 
         document.moveNode(
           nodeId: firstNode.id,
@@ -239,9 +239,9 @@ void main() {
 
       test("when moving a node from the middle to the end", () {
         final document = _createThreeParagraphDoc();
-        final firstNode = document.nodes[0];
-        final secondNode = document.nodes[1];
-        final thirdNode = document.nodes[2];
+        final firstNode = document.getNodeAt(0)!;
+        final secondNode = document.getNodeAt(1)!;
+        final thirdNode = document.getNodeAt(2)!;
 
         document.moveNode(
           nodeId: secondNode.id,
@@ -256,9 +256,9 @@ void main() {
 
       test("when moving a node from the end to the middle", () {
         final document = _createThreeParagraphDoc();
-        final firstNode = document.nodes[0];
-        final secondNode = document.nodes[1];
-        final thirdNode = document.nodes[2];
+        final firstNode = document.getNodeAt(0)!;
+        final secondNode = document.getNodeAt(1)!;
+        final thirdNode = document.getNodeAt(2)!;
 
         document.moveNode(
           nodeId: thirdNode.id,
@@ -273,9 +273,9 @@ void main() {
 
       test("when moving a node from the middle to the beginning", () {
         final document = _createThreeParagraphDoc();
-        final firstNode = document.nodes[0];
-        final secondNode = document.nodes[1];
-        final thirdNode = document.nodes[2];
+        final firstNode = document.getNodeAt(0)!;
+        final secondNode = document.getNodeAt(1)!;
+        final thirdNode = document.getNodeAt(2)!;
 
         document.moveNode(
           nodeId: secondNode.id,
@@ -290,11 +290,11 @@ void main() {
 
       test("when deleting a node at the beginning", () {
         final document = _createThreeParagraphDoc();
-        final firstNode = document.nodes[0];
-        final secondNode = document.nodes[1];
-        final thirdNode = document.nodes[2];
+        final firstNode = document.getNodeAt(0)!;
+        final secondNode = document.getNodeAt(1)!;
+        final thirdNode = document.getNodeAt(2)!;
 
-        document.deleteNode(firstNode);
+        document.deleteNode(firstNode.id);
 
         // Ensure the indices are correct.
         expect(document.getNodeIndexById(firstNode.id), -1);
@@ -304,11 +304,11 @@ void main() {
 
       test("when deleting a node at the middle", () {
         final document = _createThreeParagraphDoc();
-        final firstNode = document.nodes[0];
-        final secondNode = document.nodes[1];
-        final thirdNode = document.nodes[2];
+        final firstNode = document.getNodeAt(0)!;
+        final secondNode = document.getNodeAt(1)!;
+        final thirdNode = document.getNodeAt(2)!;
 
-        document.deleteNode(secondNode);
+        document.deleteNode(secondNode.id);
 
         // Ensure the indices are correct.
         expect(document.getNodeIndexById(secondNode.id), -1);
@@ -318,11 +318,11 @@ void main() {
 
       test("when deleting a node at the end", () {
         final document = _createThreeParagraphDoc();
-        final firstNode = document.nodes[0];
-        final secondNode = document.nodes[1];
-        final thirdNode = document.nodes[2];
+        final firstNode = document.getNodeAt(0)!;
+        final secondNode = document.getNodeAt(1)!;
+        final thirdNode = document.getNodeAt(2)!;
 
-        document.deleteNode(thirdNode);
+        document.deleteNode(thirdNode.id);
 
         // Ensure the indices are correct.
         expect(document.getNodeIndexById(thirdNode.id), -1);
@@ -332,18 +332,18 @@ void main() {
 
       test("when replacing a node at the beginning", () {
         final document = _createThreeParagraphDoc();
-        final firstNode = document.nodes[0];
-        final secondNode = document.nodes[1];
-        final thirdNode = document.nodes[2];
+        final firstNode = document.getNodeAt(0)!;
+        final secondNode = document.getNodeAt(1)!;
+        final thirdNode = document.getNodeAt(2)!;
 
         final fourthNode = ParagraphNode(
           id: "4",
           text: AttributedText("This is the third paragraph."),
         );
 
-        document.replaceNode(
-          oldNode: firstNode,
-          newNode: fourthNode,
+        document.replaceNodeById(
+          firstNode.id,
+          fourthNode,
         );
 
         // Ensure the indices are correct.
@@ -355,18 +355,18 @@ void main() {
 
       test("when replacing a node at the middle", () {
         final document = _createThreeParagraphDoc();
-        final firstNode = document.nodes[0];
-        final secondNode = document.nodes[1];
-        final thirdNode = document.nodes[2];
+        final firstNode = document.getNodeAt(0)!;
+        final secondNode = document.getNodeAt(1)!;
+        final thirdNode = document.getNodeAt(2)!;
 
         final fourthNode = ParagraphNode(
           id: "4",
           text: AttributedText("This is the third paragraph."),
         );
 
-        document.replaceNode(
-          oldNode: secondNode,
-          newNode: fourthNode,
+        document.replaceNodeById(
+          secondNode.id,
+          fourthNode,
         );
 
         // Ensure the indices are correct.
@@ -378,18 +378,18 @@ void main() {
 
       test("when replacing a node at the end", () {
         final document = _createThreeParagraphDoc();
-        final firstNode = document.nodes[0];
-        final secondNode = document.nodes[1];
-        final thirdNode = document.nodes[2];
+        final firstNode = document.getNodeAt(0)!;
+        final secondNode = document.getNodeAt(1)!;
+        final thirdNode = document.getNodeAt(2)!;
 
         final fourthNode = ParagraphNode(
           id: "4",
           text: AttributedText("This is the third paragraph."),
         );
 
-        document.replaceNode(
-          oldNode: thirdNode,
-          newNode: fourthNode,
+        document.replaceNodeById(
+          thirdNode.id,
+          fourthNode,
         );
 
         // Ensure the indices are correct.

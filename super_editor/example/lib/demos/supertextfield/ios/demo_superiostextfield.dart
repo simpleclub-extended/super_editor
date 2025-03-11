@@ -68,7 +68,7 @@ class _SuperIOSTextFieldDemoState extends State<SuperIOSTextFieldDemo> {
             return config.styleBuilder(attributions).copyWith(color: Colors.grey);
           },
         ).build,
-        selectionColor: Colors.blue.withOpacity(0.4),
+        selectionColor: Colors.blue.withValues(alpha: 0.4),
         caretStyle: const CaretStyle(color: Colors.blue),
         blinkTimingMode: BlinkTimingMode.timer,
         handlesColor: Colors.blue,
@@ -76,6 +76,7 @@ class _SuperIOSTextFieldDemoState extends State<SuperIOSTextFieldDemo> {
         maxLines: config.maxLines,
         lineHeight: lineHeight,
         textInputAction: TextInputAction.done,
+        popoverToolbarBuilder: iOSSystemPopoverTextFieldToolbarWithFallback,
         showDebugPaint: config.showDebugPaint,
       ),
     );

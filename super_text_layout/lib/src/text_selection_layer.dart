@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:flutter/widgets.dart';
 
 import 'text_layout.dart';
@@ -24,6 +26,7 @@ class TextLayoutSelectionHighlight extends StatelessWidget {
       painter: TextSelectionPainter(
         textLayout: textLayout,
         selectionColor: style.color,
+        borderRadius: style.borderRadius,
         textSelection: selection,
       ),
     );
@@ -75,8 +78,14 @@ class _EmptyHighlightPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    canvas.drawRect(
-      Rect.fromLTWH(0, 0, width, height),
+    canvas.drawRRect(
+      RRect.fromRectAndCorners(
+        Rect.fromLTWH(0, 0, width, height),
+        topLeft: style.borderRadius.topLeft,
+        topRight: style.borderRadius.topRight,
+        bottomLeft: style.borderRadius.bottomLeft,
+        bottomRight: style.borderRadius.bottomRight,
+      ),
       Paint()..color = style.color,
     );
   }
@@ -132,12 +141,14 @@ class TextSelectionPainter extends CustomPainter {
   TextSelectionPainter({
     required this.textLayout,
     required this.textSelection,
+    this.borderRadius = BorderRadius.zero,
     required this.selectionColor,
   }) : _selectionPaint = Paint()..color = selectionColor;
 
   final TextLayout? textLayout;
   final TextSelection? textSelection;
   final Color selectionColor;
+  final BorderRadius borderRadius;
   final Paint _selectionPaint;
 
   @override
@@ -151,16 +162,31 @@ class TextSelectionPainter extends CustomPainter {
       return;
     }
 
-    final selectionBoxes = textLayout!.getBoxesForSelection(textSelection!);
+    final selectionBoxes = textLayout!.getBoxesForSelection(
+      textSelection!,
+      boxHeightStyle: BoxHeightStyle.max,
+    );
 
     for (final box in selectionBoxes) {
       final rawRect = box.toRect();
-      final rect = Rect.fromLTWH(rawRect.left, rawRect.top - 2, rawRect.width, rawRect.height + 4);
+      final rect = Rect.fromLTWH(
+        rawRect.left,
+        rawRect.top - selectionHighlightBoxVerticalExpansion,
+        rawRect.width,
+        rawRect.height + (selectionHighlightBoxVerticalExpansion * 2),
+      );
+      final rrect = RRect.fromRectAndCorners(rect,
+          topLeft: borderRadius.topLeft,
+          topRight: borderRadius.topRight,
+          bottomLeft: borderRadius.bottomLeft,
+          bottomRight: borderRadius.bottomRight);
 
-      canvas.drawRect(
+      canvas.drawRRect(
         // Note: If the rect has no width then we've selected an empty line. Give
         //       that line a slight width for visibility.
-        rect.width > 0 ? rect : Rect.fromLTWH(rect.left, rect.top, 5, rect.height),
+        rect.width > 0
+            ? rrect
+            : RRect.fromRectAndRadius(Rect.fromLTWH(rect.left, rect.top, 5, rect.height), Radius.zero),
         _selectionPaint,
       );
     }
@@ -173,3 +199,14 @@ class TextSelectionPainter extends CustomPainter {
         selectionColor != oldDelegate.selectionColor;
   }
 }
+
+/// How bigger the selection highlight box is than the natural selection box
+/// of the text in dip.
+///
+/// [TextSelectionPainter] paints the selection highlight box by using the result
+/// of [TextLayout.getBoxesForSelection] and expanding both the top and bottom of
+/// each box by this amount.
+///
+/// This can be used to align other widgets, like the drag handles, with the
+/// selection highlight box.
+const selectionHighlightBoxVerticalExpansion = 2.0;

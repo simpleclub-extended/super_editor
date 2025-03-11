@@ -31,11 +31,11 @@ class SuperEditorImageSyntax extends md.LinkSyntax {
     String? tag,
     required List<md.Node> Function() getChildren,
   }) {
-    var text = parser.source!.substring(opener.endPos, parser.pos);
+    var text = parser.source.substring(opener.endPos, parser.pos);
     // The current character is the `]` that closed the link text. Examine the
     // next character, to determine what type of link we might have (a '('
     // means a possible inline link; otherwise a possible reference link).
-    if (parser.pos + 1 >= parser.source!.length) {
+    if (parser.pos + 1 >= parser.source.length) {
       // The `]` is at the end of the document, but this may still be a valid
       // shortcut reference link.
       final link = _tryCreateReferenceLink(parser, text, getChildren: getChildren);
@@ -54,7 +54,7 @@ class SuperEditorImageSyntax extends md.LinkSyntax {
       var leftParenIndex = parser.pos;
       var inlineLink = _parseInlineLink(parser);
       if (inlineLink != null) {
-        return [_tryCreateInlineLink(parser, inlineLink, getChildren: getChildren)];
+        return [ _tryCreateInlineLink(parser, inlineLink, getChildren: getChildren) ];
       }
       // At this point, we've matched `[...](`, but that `(` did not pan out to
       // be an inline link. We must now check if `[...]` is simply a shortcut
@@ -73,7 +73,7 @@ class SuperEditorImageSyntax extends md.LinkSyntax {
       parser.advanceBy(1);
       // At this point, we've matched `[...][`. Maybe a *full* reference link,
       // like `[foo][bar]` or a *collapsed* reference link, like `[foo][]`.
-      if (parser.pos + 1 < parser.source!.length && parser.charAt(parser.pos + 1) == AsciiTable.rightBracket) {
+      if (parser.pos + 1 < parser.source.length && parser.charAt(parser.pos + 1) == AsciiTable.rightBracket) {
         // That opening `[` is not actually part of the link. Maybe a
         // *shortcut* reference link (followed by a `[`).
         parser.advanceBy(1);
@@ -115,7 +115,7 @@ class SuperEditorImageSyntax extends md.LinkSyntax {
     // Parse an optional width.
     final width = _tryParseNumber(parser);
 
-    final downstreamCharacter = parser.source!.substring(parser.pos, parser.pos + 1);
+    final downstreamCharacter = parser.source.substring(parser.pos, parser.pos + 1);
     if (downstreamCharacter.toLowerCase() != 'x') {
       // The image size must have a "x" between the width and height, but the input doesn't.  Fizzle.
       return null;
@@ -155,7 +155,7 @@ class SuperEditorImageSyntax extends md.LinkSyntax {
   /// Tries to create a reference link node.
   ///
   /// Returns the link if it was successfully created, `null` otherwise.
-  md.Node? _tryCreateReferenceLink(md.InlineParser parser, String label,
+  List<md.Node>? _tryCreateReferenceLink(md.InlineParser parser, String label,
       {required List<md.Node> Function() getChildren}) {
     return _resolveReferenceLink(label, parser.document.linkReferences, getChildren: getChildren);
   }
@@ -251,19 +251,21 @@ class SuperEditorImageSyntax extends md.LinkSyntax {
   /// Otherwise, returns `null`.
   ///
   /// [label] does not need to be normalized.
-  md.Node? _resolveReferenceLink(
+ List<md.Node>? _resolveReferenceLink(
     String label,
     Map<String, md.LinkReference> linkReferences, {
     required List<md.Node> Function() getChildren,
   }) {
     final linkReference = linkReferences[_normalizeLinkLabel(label)];
     if (linkReference != null) {
-      return createNode(
-        linkReference.destination,
-        linkReference.title,
-        //size: linkReference.size,
-        getChildren: getChildren,
-      );
+      return [
+        createNode(
+          linkReference.destination,
+          linkReference.title,
+          //size: linkReference.size,
+          getChildren: getChildren,
+        ) 
+      ];
     } else {
       // This link has no reference definition. But we allow users of the
       // library to specify a custom resolver function ([linkResolver]) that
@@ -277,7 +279,7 @@ class SuperEditorImageSyntax extends md.LinkSyntax {
       if (resolved != null) {
         getChildren();
       }
-      return resolved;
+      return resolved != null ? [resolved] : null;
     }
   }
 
@@ -495,6 +497,7 @@ class SuperEditorImageSyntax extends md.LinkSyntax {
     }
   }
 
+  @override
   md.Element createNode(
     String destination,
     String? title, {

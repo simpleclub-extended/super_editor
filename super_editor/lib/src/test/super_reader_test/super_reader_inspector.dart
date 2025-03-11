@@ -95,7 +95,17 @@ class SuperReaderInspector {
   /// {@macro super_document_finder}
   static AttributedText findTextInParagraph(String nodeId, [Finder? superDocumentFinder]) {
     final documentLayout = _findDocumentLayout(superDocumentFinder);
-    return (documentLayout.getComponentByNodeId(nodeId) as TextComponentState).widget.text;
+    final component = documentLayout.getComponentByNodeId(nodeId);
+
+    if (component is TextComponentState) {
+      return component.widget.text;
+    }
+
+    if (component is ProxyDocumentComponent) {
+      return (component.childDocumentComponentKey.currentState as TextComponentState).widget.text;
+    }
+
+    throw Exception('The component for node id $nodeId is not a TextComponent.');
   }
 
   /// Finds the paragraph with the given [nodeId] and returns the paragraph's content as a [TextSpan].
@@ -145,11 +155,11 @@ class SuperReaderInspector {
       throw Exception('SuperReader not found');
     }
 
-    if (index >= doc.nodes.length) {
-      throw Exception('Tried to access index $index in a document where the max index is ${doc.nodes.length - 1}');
+    if (index >= doc.nodeCount) {
+      throw Exception('Tried to access index $index in a document where the max index is ${doc.nodeCount - 1}');
     }
 
-    final node = doc.nodes[index];
+    final node = doc.getNodeAt(index);
     if (node is! NodeType) {
       throw Exception('Tried to access a ${node.runtimeType} as $NodeType');
     }

@@ -7,6 +7,7 @@ import 'package:mockito/mockito.dart';
 import 'package:super_editor/super_editor.dart';
 import 'package:super_editor/super_editor_test.dart';
 import 'package:super_editor_markdown/super_editor_markdown.dart';
+import 'package:super_keyboard/super_keyboard_test.dart';
 import 'package:text_table/text_table.dart';
 
 import '../test_tools_user_input.dart';
@@ -68,6 +69,13 @@ class TestDocumentSelector {
     );
   }
 
+  TestSuperEditorConfigurator withSingleShortParagraph() {
+    return TestSuperEditorConfigurator._(
+      _widgetTester,
+      singleParagraphDocShortText(),
+    );
+  }
+
   TestSuperEditorConfigurator withSingleParagraphAndLink() {
     return TestSuperEditorConfigurator._(
       _widgetTester,
@@ -102,7 +110,7 @@ class TestSuperEditorConfigurator {
   TestSuperEditorConfigurator._fromExistingConfiguration(this._widgetTester, this._config);
 
   TestSuperEditorConfigurator._(this._widgetTester, MutableDocument document)
-      : _config = SuperEditorTestConfiguration(document);
+      : _config = SuperEditorTestConfiguration(_widgetTester, document);
 
   final WidgetTester _widgetTester;
   final SuperEditorTestConfiguration _config;
@@ -208,6 +216,20 @@ class TestSuperEditorConfigurator {
     return this;
   }
 
+  /// When `true`, adds [MediaQuery] view insets to simulate the appearance of a software keyboard
+  /// whenever the IME connection is active - when `false`, does nothing.
+  TestSuperEditorConfigurator simulateSoftwareKeyboardInsets(
+    bool doSimulation, {
+    double simulatedKeyboardHeight = 300,
+    bool animateKeyboard = false,
+  }) {
+    _config
+      ..simulateSoftwareKeyboardInsets = doSimulation
+      ..simulatedKeyboardHeight = simulatedKeyboardHeight
+      ..animateSimulatedSoftwareKeyboard = animateKeyboard;
+    return this;
+  }
+
   /// Configures the [SuperEditor] with the given IME [policies], which dictate the interactions
   /// between focus, selection, and the platform IME, including software keyborads on mobile.
   TestSuperEditorConfigurator withImePolicies(SuperEditorImePolicies policies) {
@@ -225,6 +247,13 @@ class TestSuperEditorConfigurator {
   /// determined by the given [imeOverrides].
   TestSuperEditorConfigurator withImeOverrides(DeltaTextInputClientDecorator imeOverrides) {
     _config.imeOverrides = imeOverrides;
+    return this;
+  }
+
+  /// Configures the [SuperEditor] with the given [isImeConnected] notifier, which allows test
+  /// code to listen for changes to the IME connection from within [SuperEditor].
+  TestSuperEditorConfigurator withImeConnectionNotifier(ValueNotifier<bool>? isImeConnected) {
+    _config.isImeConnected = isImeConnected ?? ValueNotifier<bool>(false);
     return this;
   }
 
@@ -246,6 +275,16 @@ class TestSuperEditorConfigurator {
   /// Configures the [SuperEditor] to use the given [gestureMode].
   TestSuperEditorConfigurator withGestureMode(DocumentGestureMode gestureMode) {
     _config.gestureMode = gestureMode;
+    return this;
+  }
+
+  TestSuperEditorConfigurator enableHistory(bool isHistoryEnabled) {
+    _config.isHistoryEnabled = isHistoryEnabled;
+    return this;
+  }
+
+  TestSuperEditorConfigurator withHistoryGroupingPolicy(HistoryGroupingPolicy policy) {
+    _config.historyGroupPolicy = policy;
     return this;
   }
 
@@ -299,6 +338,18 @@ class TestSuperEditorConfigurator {
     return this;
   }
 
+  /// Configures the [SuperEditor] to use the given [builder] as its android collapsed handle builder.
+  TestSuperEditorConfigurator withAndroidCollapsedHandleBuilder(DocumentCollapsedHandleBuilder? builder) {
+    _config.androidCollapsedHandleBuilder = builder;
+    return this;
+  }
+
+  /// Configures the [SuperEditor] to use the given [builder] as its android expanded handles builder.
+  TestSuperEditorConfigurator withAndroidExpandedHandlesBuilder(DocumentExpandedHandlesBuilder? builder) {
+    _config.androidExpandedHandlesBuilder = builder;
+    return this;
+  }
+
   /// Configures the [SuperEditor] to use the given [builder] as its iOS toolbar builder.
   TestSuperEditorConfigurator withiOSToolbarBuilder(DocumentFloatingToolbarBuilder? builder) {
     _config.iOSToolbarBuilder = builder;
@@ -340,6 +391,13 @@ class TestSuperEditorConfigurator {
   /// Configures the [SuperEditor] [DocumentLayout] to use the given [layoutKey].
   TestSuperEditorConfigurator withLayoutKey(GlobalKey? layoutKey) {
     _config.layoutKey = layoutKey;
+    return this;
+  }
+
+  /// Configures the [SuperEditor] to use only the given [tapDelegateFactories].
+  TestSuperEditorConfigurator withTapDelegateFactories(
+      List<SuperEditorContentTapDelegateFactory>? tapDelegateFactories) {
+    _config.tapDelegateFactories = tapDelegateFactories;
     return this;
   }
 
@@ -422,7 +480,12 @@ class TestSuperEditorConfigurator {
     final layoutKey = _config.layoutKey!;
     final focusNode = _config.focusNode ?? FocusNode();
     final composer = MutableDocumentComposer(initialSelection: _config.selection);
-    final editor = createDefaultDocumentEditor(document: _config.document, composer: composer)
+    final editor = createDefaultDocumentEditor(
+      document: _config.document,
+      composer: composer,
+      historyGroupingPolicy: _config.historyGroupPolicy ?? neverMergePolicy,
+      isHistoryEnabled: _config.isHistoryEnabled,
+    )
       ..requestHandlers.insertAll(0, _config.addedRequestHandlers)
       ..reactionPipeline.insertAll(0, _config.addedReactions);
 
@@ -439,7 +502,9 @@ class TestSuperEditorConfigurator {
   /// Builds a complete screen experience, which includes the given [superEditor].
   Widget _buildWidgetTree(Widget superEditor) {
     if (_config.widgetTreeBuilder != null) {
-      return _config.widgetTreeBuilder!(superEditor);
+      return _buildSimulatedSoftwareKeyboard(
+        child: _config.widgetTreeBuilder!(superEditor),
+      );
     }
     return MaterialApp(
       theme: _config.appTheme,
@@ -450,21 +515,39 @@ class TestSuperEditorConfigurator {
       // Use our own version of the shortcuts, so we can set `debugIsWebOverride` to `true` to force
       // Flutter to pick the web shortcuts.
       shortcuts: defaultFlutterShortcuts,
-      home: Scaffold(
-        appBar: _config.appBarHeight != null
-            ? PreferredSize(
-                preferredSize: ui.Size(double.infinity, _config.appBarHeight!),
-                child: SafeArea(
-                  child: SizedBox(
-                    height: _config.appBarHeight!,
-                    child: const ColoredBox(color: Colors.yellow),
+      home: _buildSimulatedSoftwareKeyboard(
+        child: Scaffold(
+          appBar: _config.appBarHeight != null
+              ? PreferredSize(
+                  preferredSize: ui.Size(double.infinity, _config.appBarHeight!),
+                  child: SafeArea(
+                    child: SizedBox(
+                      height: _config.appBarHeight!,
+                      child: const ColoredBox(color: Colors.yellow),
+                    ),
                   ),
-                ),
-              )
-            : null,
-        body: superEditor,
+                )
+              : null,
+          body: superEditor,
+          resizeToAvoidBottomInset: false,
+          // ^ Don't automatically resize content to avoid keyboard. We want to be
+          //   able to test our keyboard scaffold, which needs full screen height.
+          //   If a test ever needs this to be `true` then we should make this configurable.
+        ),
       ),
       debugShowCheckedModeBanner: false,
+    );
+  }
+
+  Widget _buildSimulatedSoftwareKeyboard({
+    required Widget child,
+  }) {
+    return SoftwareKeyboardHeightSimulator(
+      tester: _config.tester,
+      isEnabled: _config.simulateSoftwareKeyboardInsets,
+      keyboardHeight: _config.simulatedKeyboardHeight,
+      animateKeyboard: _config.animateSimulatedSoftwareKeyboard,
+      child: child,
     );
   }
 
@@ -492,9 +575,7 @@ class TestSuperEditorConfigurator {
     return CustomScrollView(
       controller: _config.scrollController,
       slivers: [
-        SliverToBoxAdapter(
-          child: child,
-        ),
+        child,
       ],
     );
   }
@@ -537,6 +618,8 @@ class _TestSuperEditorState extends State<_TestSuperEditor> {
 
     _androidControlsController = SuperEditorAndroidControlsController(
       toolbarBuilder: widget.testConfiguration.androidToolbarBuilder,
+      collapsedHandleBuilder: widget.testConfiguration.androidCollapsedHandleBuilder,
+      expandedHandlesBuilder: widget.testConfiguration.androidExpandedHandlesBuilder,
     );
   }
 
@@ -575,9 +658,9 @@ class _TestSuperEditorState extends State<_TestSuperEditor> {
       focusNode: widget.testDocumentContext.focusNode,
       autofocus: widget.testConfiguration.autoFocus,
       tapRegionGroupId: widget.testConfiguration.tapRegionGroupId,
+      contentTapDelegateFactories:
+          widget.testConfiguration.tapDelegateFactories ?? [superEditorLaunchLinkTapHandlerFactory],
       editor: widget.testDocumentContext.editor,
-      document: widget.testDocumentContext.document,
-      composer: widget.testDocumentContext.composer,
       documentLayoutKey: widget.testDocumentContext.layoutKey,
       inputSource: widget.testConfiguration.inputSource,
       selectionPolicies: widget.testConfiguration.selectionPolicies ?? const SuperEditorSelectionPolicies(),
@@ -586,6 +669,7 @@ class _TestSuperEditorState extends State<_TestSuperEditor> {
       imePolicies: widget.testConfiguration.imePolicies ?? const SuperEditorImePolicies(),
       imeConfiguration: widget.testConfiguration.imeConfiguration,
       imeOverrides: widget.testConfiguration.imeOverrides,
+      isImeConnected: widget.testConfiguration.isImeConnected,
       keyboardActions: [
         ...widget.testConfiguration.prependedKeyboardActions,
         ...(widget.testConfiguration.inputSource == TextInputSource.ime
@@ -599,6 +683,7 @@ class _TestSuperEditorState extends State<_TestSuperEditor> {
       componentBuilders: [
         ...widget.testConfiguration.addedComponents,
         ...(widget.testConfiguration.componentBuilders ?? defaultComponentBuilders),
+        if (widget.testConfiguration.componentBuilders == null) TaskComponentBuilder(widget.testDocumentContext.editor)
       ],
       scrollController: widget.testConfiguration.scrollController,
       documentOverlayBuilders: _createOverlayBuilders(),
@@ -654,7 +739,9 @@ class _TestSuperEditorState extends State<_TestSuperEditor> {
 }
 
 class SuperEditorTestConfiguration {
-  SuperEditorTestConfiguration(this.document);
+  SuperEditorTestConfiguration(this.tester, this.document);
+
+  final WidgetTester tester;
 
   ThemeData? appTheme;
   Key? key;
@@ -671,6 +758,8 @@ class SuperEditorTestConfiguration {
   ScrollController? scrollController;
   bool insideCustomScrollView = false;
   DocumentGestureMode? gestureMode;
+  bool isHistoryEnabled = false;
+  HistoryGroupingPolicy? historyGroupPolicy;
   TextInputSource? inputSource;
   SuperEditorSelectionPolicies? selectionPolicies;
   SelectionStyles? selectionStyles;
@@ -688,17 +777,27 @@ class SuperEditorTestConfiguration {
   Color? androidCaretColor;
 
   SoftwareKeyboardController? softwareKeyboardController;
+  bool simulateSoftwareKeyboardInsets = false;
+  double simulatedKeyboardHeight = 300;
+  bool animateSimulatedSoftwareKeyboard = false;
   SuperEditorImePolicies? imePolicies;
   SuperEditorImeConfiguration? imeConfiguration;
   DeltaTextInputClientDecorator? imeOverrides;
+  ValueNotifier<bool> isImeConnected = ValueNotifier<bool>(false);
   Map<String, SuperEditorSelectorHandler>? selectorHandlers;
   final prependedKeyboardActions = <DocumentKeyboardAction>[];
   final appendedKeyboardActions = <DocumentKeyboardAction>[];
   final addedComponents = <ComponentBuilder>[];
+
   DocumentFloatingToolbarBuilder? androidToolbarBuilder;
+  DocumentCollapsedHandleBuilder? androidCollapsedHandleBuilder;
+  DocumentExpandedHandlesBuilder? androidExpandedHandlesBuilder;
+
   DocumentFloatingToolbarBuilder? iOSToolbarBuilder;
 
   DocumentSelection? selection;
+
+  List<SuperEditorContentTapDelegateFactory>? tapDelegateFactories;
 
   final plugins = <SuperEditorPlugin>{};
 
@@ -859,35 +958,34 @@ class EquivalentDocumentMatcher extends Matcher {
     bool nodeCountMismatch = false;
     bool nodeTypeOrContentMismatch = false;
 
-    if (_expectedDocument.nodes.length != actualDocument.nodes.length) {
-      messages
-          .add("expected ${_expectedDocument.nodes.length} document nodes but found ${actualDocument.nodes.length}");
+    if (_expectedDocument.nodeCount != actualDocument.nodeCount) {
+      messages.add("expected ${_expectedDocument.nodeCount} document nodes but found ${actualDocument.nodeCount}");
       nodeCountMismatch = true;
     } else {
       messages.add("document have the same number of nodes");
     }
 
-    final maxNodeCount = max(_expectedDocument.nodes.length, actualDocument.nodes.length);
+    final maxNodeCount = max(_expectedDocument.nodeCount, actualDocument.nodeCount);
     final nodeComparisons = List.generate(maxNodeCount, (index) => ["", "", " "]);
     for (int i = 0; i < maxNodeCount; i += 1) {
-      if (i < _expectedDocument.nodes.length && i < actualDocument.nodes.length) {
-        nodeComparisons[i][0] = _expectedDocument.nodes[i].runtimeType.toString();
-        nodeComparisons[i][1] = actualDocument.nodes[i].runtimeType.toString();
+      if (i < _expectedDocument.nodeCount && i < actualDocument.nodeCount) {
+        nodeComparisons[i][0] = _expectedDocument.getNodeAt(i)!.runtimeType.toString();
+        nodeComparisons[i][1] = actualDocument.getNodeAt(i)!.runtimeType.toString();
 
-        if (_expectedDocument.nodes[i].runtimeType != actualDocument.nodes[i].runtimeType) {
+        if (_expectedDocument.getNodeAt(i)!.runtimeType != actualDocument.getNodeAt(i)!.runtimeType) {
           nodeComparisons[i][2] = "Wrong Type";
           nodeTypeOrContentMismatch = true;
-        } else if (!_expectedDocument.nodes[i].hasEquivalentContent(actualDocument.nodes[i])) {
+        } else if (!_expectedDocument.getNodeAt(i)!.hasEquivalentContent(actualDocument.getNodeAt(i)!)) {
           nodeComparisons[i][2] = "Different Content";
           nodeTypeOrContentMismatch = true;
         }
-      } else if (i < _expectedDocument.nodes.length) {
-        nodeComparisons[i][0] = _expectedDocument.nodes[i].runtimeType.toString();
+      } else if (i < _expectedDocument.nodeCount) {
+        nodeComparisons[i][0] = _expectedDocument.getNodeAt(i)!.runtimeType.toString();
         nodeComparisons[i][1] = "NA";
         nodeComparisons[i][2] = "Missing Node";
-      } else if (i < actualDocument.nodes.length) {
+      } else if (i < actualDocument.nodeCount) {
         nodeComparisons[i][0] = "NA";
-        nodeComparisons[i][1] = actualDocument.nodes[i].runtimeType.toString();
+        nodeComparisons[i][1] = actualDocument.getNodeAt(i)!.runtimeType.toString();
         nodeComparisons[i][2] = "Missing Node";
       }
     }

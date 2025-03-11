@@ -41,7 +41,7 @@ class DocsEditorToolbar extends StatefulWidget {
 }
 
 class _DocsEditorToolbarState extends State<DocsEditorToolbar> {
-  /// Groups the aditional toolbar options popover, which is shown by tapping
+  /// Groups the additional toolbar options popover, which is shown by tapping
   /// the "more items" button with the popovers shown by the toolbar items,
   /// like the color picker.
   static const _tapRegionGroupId = 'docs_toolbar';
@@ -248,7 +248,7 @@ class _DocsEditorToolbarState extends State<DocsEditorToolbar> {
   /// Applies the link entered on the URL textfield to the current
   /// selected range.
   void _applyLink() {
-    final url = _urlController!.text.text;
+    final url = _urlController!.text.toPlainText(includePlaceholders: false);
 
     final selection = widget.composer.selection!;
     final baseOffset = (selection.base.nodePosition as TextPosition).offset;
@@ -281,7 +281,7 @@ class _DocsEditorToolbarState extends State<DocsEditorToolbar> {
     ]);
 
     // Clear the field and hide the URL bar
-    _urlController!.clear();
+    _urlController!.clearTextAndSelection();
     _urlFocusNode.unfocus(disposition: UnfocusDisposition.previouslyFocusedChild);
     _linkPopoverController.close();
     setState(() {});
@@ -440,10 +440,11 @@ class _DocsEditorToolbarState extends State<DocsEditorToolbar> {
     int startOffset = range.start;
     int endOffset = range.end;
 
-    while (startOffset < range.end && text.text[startOffset] == ' ') {
+    final plainText = text.toPlainText();
+    while (startOffset < range.end && plainText[startOffset] == ' ') {
       startOffset += 1;
     }
-    while (endOffset > startOffset && text.text[endOffset] == ' ') {
+    while (endOffset > startOffset && plainText[endOffset] == ' ') {
       endOffset -= 1;
     }
 
@@ -620,7 +621,7 @@ class _DocsEditorToolbarState extends State<DocsEditorToolbar> {
         height: 40,
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 6.0, horizontal: 9.0),
-          child: _GroupedToolbarItens(
+          child: _GroupedToolbarItems(
             tapRegionGroupId: _tapRegionGroupId,
             visibleGroupCount: visibleGroupCount,
             groups: [
@@ -865,7 +866,7 @@ class _DocsEditorToolbarState extends State<DocsEditorToolbar> {
               itemBuilder: (context, item, isActive, onTap) => SizedBox(
                 height: 40,
                 child: ColoredBox(
-                  color: isActive ? Colors.grey.withOpacity(0.2) : Colors.transparent,
+                  color: isActive ? Colors.grey.withValues(alpha: 0.2) : Colors.transparent,
                   child: Padding(
                     padding: const EdgeInsets.all(8.0),
                     child: Row(
@@ -936,7 +937,7 @@ class _DocsEditorToolbarState extends State<DocsEditorToolbar> {
         onSelected: _onChangeBlockTypeRequested,
         itemBuilder: (context, item, isActive, onTap) => DecoratedBox(
           decoration: BoxDecoration(
-            color: isActive ? Colors.grey.withOpacity(0.2) : Colors.transparent,
+            color: isActive ? Colors.grey.withValues(alpha: 0.2) : Colors.transparent,
           ),
           child: InkWell(
             onTap: onTap,
@@ -995,7 +996,7 @@ class _DocsEditorToolbarState extends State<DocsEditorToolbar> {
         ),
         itemBuilder: (context, item, isActive, onTap) => DecoratedBox(
           decoration: BoxDecoration(
-            color: isActive ? Colors.grey.withOpacity(0.2) : Colors.transparent,
+            color: isActive ? Colors.grey.withValues(alpha: 0.2) : Colors.transparent,
           ),
           child: InkWell(
             onTap: onTap,
@@ -1187,7 +1188,7 @@ class _DocsEditorToolbarState extends State<DocsEditorToolbar> {
               onPressed: () {
                 setState(() {
                   _urlFocusNode.unfocus();
-                  _urlController!.clear();
+                  _urlController!.clearTextAndSelection();
                 });
               },
             ),
@@ -1230,8 +1231,8 @@ class _DocsEditorToolbarState extends State<DocsEditorToolbar> {
 /// Only the groups with index less than [visibleGroupCount]
 /// are displayed. When there is any hidden groups, a button is
 /// displayed to show a popover with the remaining groups.
-class _GroupedToolbarItens extends StatefulWidget {
-  const _GroupedToolbarItens({
+class _GroupedToolbarItems extends StatefulWidget {
+  const _GroupedToolbarItems({
     required this.groups,
     required this.visibleGroupCount,
     this.tapRegionGroupId,
@@ -1258,10 +1259,10 @@ class _GroupedToolbarItens extends StatefulWidget {
   final String? tapRegionGroupId;
 
   @override
-  State<_GroupedToolbarItens> createState() => _GroupedToolbarItensState();
+  State<_GroupedToolbarItems> createState() => _GroupedToolbarItemsState();
 }
 
-class _GroupedToolbarItensState extends State<_GroupedToolbarItens> {
+class _GroupedToolbarItemsState extends State<_GroupedToolbarItems> {
   final PopoverController _popoverController = PopoverController();
 
   @override

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_test_robots/flutter_test_robots.dart';
 import 'package:flutter_test_runners/flutter_test_runners.dart';
+import 'package:follow_the_leader/follow_the_leader.dart';
+import 'package:super_editor/src/infrastructure/platforms/android/selection_handles.dart';
 import 'package:super_editor/super_editor.dart';
 import 'package:super_editor/super_editor_test.dart';
 import 'package:super_text_layout/super_text_layout.dart';
@@ -126,6 +128,10 @@ void main() {
       // Ensure the toolbar isn't visible.
       expect(SuperEditorInspector.isMobileToolbarVisible(), isFalse);
 
+      // Wait for the collapsed handle to disappear so that it doesn't cover the
+      // line below.
+      await tester.pump(const Duration(seconds: 5));
+
       // Place the caret at the beginning of the second paragraph, at the same offset.
       await tester.placeCaretInParagraph("2", 0);
 
@@ -215,11 +221,13 @@ void main() {
       expect(SuperEditorInspector.findAllMobileDragHandles(), findsExactly(2));
       expect(
         tester.getTopLeft(SuperEditorInspector.findMobileDownstreamDragHandle()),
-        offsetMoreOrLessEquals(documentLayout.getGlobalOffsetFromDocumentOffset(selectedPositionRect.bottomRight)),
+        offsetMoreOrLessEquals(documentLayout.getGlobalOffsetFromDocumentOffset(selectedPositionRect.bottomRight) -
+            Offset(AndroidSelectionHandle.defaultTouchRegionExpansion.left, 0)),
       );
       expect(
         tester.getTopRight(SuperEditorInspector.findMobileUpstreamDragHandle()),
-        offsetMoreOrLessEquals(documentLayout.getGlobalOffsetFromDocumentOffset(selectedPositionRect.bottomRight)),
+        offsetMoreOrLessEquals(documentLayout.getGlobalOffsetFromDocumentOffset(selectedPositionRect.bottomRight) +
+            Offset(AndroidSelectionHandle.defaultTouchRegionExpansion.right, 0)),
       );
 
       // Release the drag handle.
@@ -297,6 +305,91 @@ void main() {
       expect(SuperEditorInspector.isCaretVisible(), true);
     });
 
+    testWidgetsOnAndroid("allows customizing the collapsed handle", (tester) async {
+      // Use a key different from the provided by the builder to make sure our handle
+      // is used instead of the default one.
+      final collapsedFinderKey = GlobalKey();
+
+      await tester //
+          .createDocument()
+          .withSingleParagraph()
+          .withAndroidCollapsedHandleBuilder(
+        (
+          BuildContext context, {
+          required Key handleKey,
+          required LeaderLink focalPoint,
+          required DocumentHandleGestureDelegate gestureDelegate,
+          required bool shouldShow,
+        }) {
+          return SizedBox(
+            key: collapsedFinderKey,
+            width: 20,
+            height: 20,
+            child: Container(
+              key: handleKey,
+            ),
+          );
+        },
+      ).pump();
+
+      // Place the caret at the beginning of the document to show the collapsed handle.
+      await tester.placeCaretInParagraph('1', 0);
+
+      // Ensure the custom handle is used.
+      expect(find.byKey(collapsedFinderKey), findsOneWidget);
+    });
+
+    testWidgetsOnAndroid("allows customizing the expanded handles", (tester) async {
+      // Use keys different from the provided by the builder to make sure our handles
+      // are used instead of the default ones.
+      final upstreamFinderKey = GlobalKey();
+      final downstreamFinderKey = GlobalKey();
+
+      await tester //
+          .createDocument()
+          .withSingleParagraph()
+          .withAndroidExpandedHandlesBuilder(
+        (
+          BuildContext context, {
+          required Key upstreamHandleKey,
+          required LeaderLink upstreamFocalPoint,
+          required DocumentHandleGestureDelegate upstreamGestureDelegate,
+          required Key downstreamHandleKey,
+          required LeaderLink downstreamFocalPoint,
+          required DocumentHandleGestureDelegate downstreamGestureDelegate,
+          required bool shouldShow,
+        }) {
+          return Stack(
+            children: [
+              SizedBox(
+                key: upstreamFinderKey,
+                width: 20,
+                height: 20,
+                child: Container(
+                  key: upstreamHandleKey,
+                ),
+              ),
+              SizedBox(
+                key: downstreamFinderKey,
+                width: 20,
+                height: 20,
+                child: Container(
+                  key: downstreamHandleKey,
+                ),
+              ),
+            ],
+          );
+        },
+      ).pump();
+
+      // Double tap to select the first word and show the expanded handles.
+      await tester.doubleTapInParagraph('1', 0);
+
+      // Ensure the custom handles are used.
+      expect(find.byKey(upstreamFinderKey), findsOneWidget);
+      expect(find.byKey(downstreamFinderKey), findsOneWidget);
+    });
+
     group('shows magnifier above the caret when dragging the collapsed handle', () {
       testWidgetsOnAndroid('with an ancestor scrollable', (tester) async {
         final scrollController = ScrollController();
@@ -322,7 +415,7 @@ void main() {
                             childCount: 50,
                           ),
                         ),
-                        SliverToBoxAdapter(child: superEditor),
+                        superEditor,
                       ],
                     ),
                   ),

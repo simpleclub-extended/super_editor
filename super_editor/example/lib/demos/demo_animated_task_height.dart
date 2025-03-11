@@ -52,8 +52,6 @@ class _AnimatedTaskHeightDemoState extends State<AnimatedTaskHeightDemo> {
     print("Building the entire demo");
     return SuperEditor(
       editor: _docEditor,
-      document: _doc,
-      composer: _composer,
       stylesheet: defaultStylesheet.copyWith(
         documentPadding: const EdgeInsets.symmetric(vertical: 56, horizontal: 24),
       ),
@@ -132,7 +130,7 @@ class _AnimatedTaskComponentState extends State<_AnimatedTaskComponent>
               child: Checkbox(
                 value: widget.viewModel.isComplete,
                 onChanged: (newValue) {
-                  widget.viewModel.setComplete(newValue!);
+                  widget.viewModel.setComplete?.call(newValue!);
                 },
               ),
             ),

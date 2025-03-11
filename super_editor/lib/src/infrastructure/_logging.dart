@@ -4,6 +4,7 @@ import 'package:logging/logging.dart' as logging;
 
 class LogNames {
   static const editor = 'editor';
+  static const editorEdits = 'editor.edits';
   static const editorPolicies = 'editor.policies';
   static const editorScrolling = 'editor.scrolling';
   static const editorGestures = 'editor.gestures';
@@ -21,6 +22,7 @@ class LogNames {
   static const editorUserTags = 'editor.tokens.tags.users';
   static const editorHashTags = 'editor.tokens.tags.hash';
   static const editorActionTags = 'editor.tokens.tags.action';
+  static const editorSpellingAndGrammar = 'editor.spellingAndGrammar';
 
   static const reader = 'reader';
   static const readerScrolling = 'reader.scrolling';
@@ -41,6 +43,7 @@ class LogNames {
   static const iosTextField = 'textfield.ios';
 
   static const infrastructure = 'infrastructure';
+  static const keyboardPanel = 'infrastructure.keyboardPanel';
   static const longPressSelection = 'infrastructure.gestures.longPress';
   static const scheduler = 'infrastructure.scheduler';
   static const contentLayers = 'infrastructure.content_layers';
@@ -48,6 +51,7 @@ class LogNames {
 }
 
 final editorLog = logging.Logger(LogNames.editor);
+final editorEditsLog = logging.Logger(LogNames.editorEdits);
 final editorPoliciesLog = logging.Logger(LogNames.editorPolicies);
 final editorScrollingLog = logging.Logger(LogNames.editorScrolling);
 final editorGesturesLog = logging.Logger(LogNames.editorGestures);
@@ -65,6 +69,7 @@ final editorTagsLog = logging.Logger(LogNames.editorTags);
 final editorStableTagsLog = logging.Logger(LogNames.editorUserTags);
 final editorPatternTagsLog = logging.Logger(LogNames.editorHashTags);
 final editorActionTagsLog = logging.Logger(LogNames.editorActionTags);
+final editorSpellingAndGrammarLog = logging.Logger(LogNames.editorSpellingAndGrammar);
 
 final readerLog = logging.Logger(LogNames.reader);
 final readerScrollingLog = logging.Logger(LogNames.readerScrolling);
@@ -84,6 +89,7 @@ final iosTextFieldLog = logging.Logger(LogNames.iosTextField);
 
 final docGesturesLog = logging.Logger(LogNames.documentGestures);
 final infrastructureLog = logging.Logger(LogNames.infrastructure);
+final keyboardPanelLog = logging.Logger(LogNames.keyboardPanel);
 final longPressSelectionLog = logging.Logger(LogNames.longPressSelection);
 final schedulerLog = logging.Logger(LogNames.scheduler);
 final contentLayersLog = logging.Logger(LogNames.contentLayers);

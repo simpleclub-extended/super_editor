@@ -23,6 +23,10 @@ dependencies:
       ref: simpleclub-stable
   url_launcher:
 
+dependency_overrides:
+  super_text_layout:
+    path: ../super_text_layout
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

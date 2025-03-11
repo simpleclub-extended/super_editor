@@ -144,7 +144,7 @@ void main() {
           ..insertAtCaret(text: 'l')
           ..insertAtCaret(text: 'd');
 
-        expect(controller.text.text, equals('Hello World'));
+        expect(controller.text.toPlainText(), equals('Hello World'));
         ExpectedSpans([
           '______bbbbb',
         ]).expectSpans(controller.text.spans);
@@ -165,7 +165,7 @@ void main() {
           ..selection = const TextSelection.collapsed(offset: 8)
           ..insertAtCaret(text: 'b');
 
-        expect(controller.text.text, equals('before [b] after'));
+        expect(controller.text.toPlainText(), equals('before [b] after'));
         expect(controller.selection, equals(const TextSelection.collapsed(offset: 9)));
         ExpectedSpans([
           '_______bbb______',
@@ -187,7 +187,7 @@ void main() {
           ..selection = const TextSelection.collapsed(offset: 8)
           ..insertAtCaret(text: 'hello');
 
-        expect(controller.text.text, equals('before [hello] after'));
+        expect(controller.text.toPlainText(), equals('before [hello] after'));
         expect(controller.selection, equals(const TextSelection.collapsed(offset: 13)));
         ExpectedSpans([
           '_______bbbbbbb______',
@@ -210,7 +210,7 @@ void main() {
           ..clearComposingAttributions()
           ..insertAtCaret(text: 'b');
 
-        expect(controller.text.text, equals('before [b] after'));
+        expect(controller.text.toPlainText(), equals('before [b] after'));
         ExpectedSpans([
           '_______b_b______',
         ]).expectSpans(controller.text.spans);
@@ -246,7 +246,7 @@ void main() {
           ..selection = const TextSelection.collapsed(offset: 0)
           ..deletePreviousCharacter();
 
-        expect(controller.text.text, equals('some text'));
+        expect(controller.text.toPlainText(), equals('some text'));
       });
 
       test('deletes first character in text', () {
@@ -258,7 +258,7 @@ void main() {
           ..selection = const TextSelection.collapsed(offset: 1)
           ..deletePreviousCharacter();
 
-        expect(controller.text.text, equals('ome text'));
+        expect(controller.text.toPlainText(), equals('ome text'));
         expect(controller.selection, equals(const TextSelection.collapsed(offset: 0)));
       });
 
@@ -271,7 +271,7 @@ void main() {
           ..selection = const TextSelection.collapsed(offset: 9)
           ..deleteNextCharacter();
 
-        expect(controller.text.text, equals('some text'));
+        expect(controller.text.toPlainText(), equals('some text'));
       });
 
       test('deletes last character in text', () {
@@ -283,7 +283,7 @@ void main() {
           ..selection = const TextSelection.collapsed(offset: 8)
           ..deleteNextCharacter();
 
-        expect(controller.text.text, equals('some tex'));
+        expect(controller.text.toPlainText(), equals('some tex'));
         expect(controller.selection, equals(const TextSelection.collapsed(offset: 8)));
       });
     });
@@ -294,7 +294,7 @@ void main() {
           selection: const TextSelection.collapsed(offset: 0),
         )..insertAtCaret(text: 'newtext');
 
-        expect(controller.text.text, equals('newtext'));
+        expect(controller.text.toPlainText(), equals('newtext'));
       });
 
       test('into empty text with caret', () {
@@ -303,7 +303,7 @@ void main() {
         );
         controller.insertAtCaret(text: 'newtext');
 
-        expect(controller.text.text, equals('newtext'));
+        expect(controller.text.toPlainText(), equals('newtext'));
         expect(controller.selection, equals(const TextSelection.collapsed(offset: 7)));
       });
 
@@ -314,7 +314,7 @@ void main() {
         );
         controller.insertAtCaret(text: 'newtext');
 
-        expect(controller.text.text, equals('newtext:existing text'));
+        expect(controller.text.toPlainText(), equals('newtext:existing text'));
       });
 
       test('into start of existing text and pushes caret back', () {
@@ -324,7 +324,7 @@ void main() {
         );
         controller.insertAtCaret(text: 'newtext');
 
-        expect(controller.text.text, equals('newtext:existing text'));
+        expect(controller.text.toPlainText(), equals('newtext:existing text'));
         expect(controller.selection, equals(const TextSelection.collapsed(offset: 7)));
       });
 
@@ -338,7 +338,7 @@ void main() {
         );
         controller.insert(newText: AttributedText('newtext'), insertIndex: 0);
 
-        expect(controller.text.text, equals('newtext:existing text'));
+        expect(controller.text.toPlainText(), equals('newtext:existing text'));
         expect(
           controller.selection,
           equals(
@@ -360,7 +360,7 @@ void main() {
         );
         controller.insert(newText: AttributedText('newtext'), insertIndex: 0);
 
-        expect(controller.text.text, equals('newtext:existing text'));
+        expect(controller.text.toPlainText(), equals('newtext:existing text'));
         expect(
           controller.selection,
           equals(
@@ -379,7 +379,7 @@ void main() {
         );
         controller.insertAtCaret(text: 'newtext');
 
-        expect(controller.text.text, equals('existing text:newtext'));
+        expect(controller.text.toPlainText(), equals('existing text:newtext'));
       });
 
       test('into end of existing text with caret before inserted text', () {
@@ -389,7 +389,7 @@ void main() {
         );
         controller.insertAtCaret(text: 'newtext');
 
-        expect(controller.text.text, equals('existing text:newtext'));
+        expect(controller.text.toPlainText(), equals('existing text:newtext'));
         expect(controller.selection, equals(const TextSelection.collapsed(offset: 21)));
       });
 
@@ -400,7 +400,7 @@ void main() {
         );
         controller.insert(newText: AttributedText('newtext'), insertIndex: 14);
 
-        expect(controller.text.text, equals('existing text:newtext'));
+        expect(controller.text.toPlainText(), equals('existing text:newtext'));
         expect(
           controller.selection,
           equals(
@@ -421,7 +421,7 @@ void main() {
         );
         controller.insertAtCaret(text: 'newtext');
 
-        expect(controller.text.text, equals('[newtext]:existing text'));
+        expect(controller.text.toPlainText(), equals('[newtext]:existing text'));
         expect(controller.selection, equals(const TextSelection.collapsed(offset: 8)));
       });
 
@@ -437,7 +437,7 @@ void main() {
         );
         controller.insert(newText: AttributedText('newtext'), insertIndex: 1);
 
-        expect(controller.text.text, equals('[newtext]:existing text'));
+        expect(controller.text.toPlainText(), equals('[newtext]:existing text'));
         expect(
           controller.selection,
           equals(
@@ -461,7 +461,7 @@ void main() {
         );
         controller.insert(newText: AttributedText('newtext'), insertIndex: 1);
 
-        expect(controller.text.text, equals('[newtext]:existing text'));
+        expect(controller.text.toPlainText(), equals('[newtext]:existing text'));
         expect(
           controller.selection,
           equals(
@@ -488,7 +488,7 @@ void main() {
         );
         controller.insertAtCaret(text: 'newtext');
 
-        expect(controller.text.text, equals('newtext[]:unstyled text'));
+        expect(controller.text.toPlainText(), equals('newtext[]:unstyled text'));
         ExpectedSpans([
           '_______bb______________',
         ]).expectSpans(controller.text.spans);
@@ -509,7 +509,7 @@ void main() {
         );
         controller.insertAtCaret(text: 'newtext');
 
-        expect(controller.text.text, equals('[newtext]:unstyled text'));
+        expect(controller.text.toPlainText(), equals('[newtext]:unstyled text'));
         ExpectedSpans([
           'bbbbbbbbb______________',
         ]).expectSpans(controller.text.spans);
@@ -530,7 +530,7 @@ void main() {
         );
         controller.insertAtCaret(text: 'newtext');
 
-        expect(controller.text.text, equals('[newtext]:unstyled text'));
+        expect(controller.text.toPlainText(), equals('[newtext]:unstyled text'));
         ExpectedSpans([
           'bbbbbbbb_______________',
         ]).expectSpans(controller.text.spans);
@@ -545,7 +545,7 @@ void main() {
         );
         controller.replace(newText: AttributedText('newtext'), from: 0, to: 0);
 
-        expect(controller.text.text, equals('newtext:existing text'));
+        expect(controller.text.toPlainText(), equals('newtext:existing text'));
       });
 
       test('empty text with new text at beginning with selection', () {
@@ -558,7 +558,7 @@ void main() {
         );
         controller.replace(newText: AttributedText('newtext'), from: 0, to: 0);
 
-        expect(controller.text.text, equals('newtext:existing text'));
+        expect(controller.text.toPlainText(), equals('newtext:existing text'));
         expect(
           controller.selection,
           const TextSelection(
@@ -575,7 +575,7 @@ void main() {
         );
         controller.replace(newText: AttributedText(''), from: 0, to: 8);
 
-        expect(controller.text.text, equals(':existing text'));
+        expect(controller.text.toPlainText(), equals(':existing text'));
         expect(controller.selection, equals(const TextSelection.collapsed(offset: 0)));
       });
 
@@ -586,7 +586,7 @@ void main() {
         );
         controller.replace(newText: AttributedText('newtext'), from: 0, to: 9);
 
-        expect(controller.text.text, equals('newtext:existing text'));
+        expect(controller.text.toPlainText(), equals('newtext:existing text'));
         expect(controller.selection, equals(const TextSelection.collapsed(offset: 7)));
       });
 
@@ -597,7 +597,7 @@ void main() {
         );
         controller.replace(newText: AttributedText('newtext'), from: 14, to: 23);
 
-        expect(controller.text.text, equals('existing text:newtext'));
+        expect(controller.text.toPlainText(), equals('existing text:newtext'));
         expect(controller.selection, equals(const TextSelection.collapsed(offset: 21)));
       });
 
@@ -608,7 +608,7 @@ void main() {
         );
         controller.replace(newText: AttributedText('newtext'), from: 1, to: 10);
 
-        expect(controller.text.text, equals('[newtext]'));
+        expect(controller.text.toPlainText(), equals('[newtext]'));
       });
 
       test('in middle of styled text with new styled text', () {
@@ -634,7 +634,7 @@ void main() {
         );
         controller.replace(newText: newText, from: 1, to: 10);
 
-        expect(controller.text.text, equals('[newtext]'));
+        expect(controller.text.toPlainText(), equals('[newtext]'));
 
         ExpectedSpans([
           'biiiiiiib',
@@ -649,7 +649,7 @@ void main() {
         );
         controller.delete(from: 0, to: 8);
 
-        expect(controller.text.text, equals(':existing text'));
+        expect(controller.text.toPlainText(), equals(':existing text'));
       });
 
       test('from beginning with caret', () {
@@ -659,7 +659,7 @@ void main() {
         );
         controller.delete(from: 0, to: 8);
 
-        expect(controller.text.text, equals(':existing text'));
+        expect(controller.text.toPlainText(), equals(':existing text'));
         expect(controller.selection, equals(const TextSelection.collapsed(offset: 0)));
       });
 
@@ -673,7 +673,7 @@ void main() {
         );
         controller.delete(from: 0, to: 8);
 
-        expect(controller.text.text, equals(':existing text'));
+        expect(controller.text.toPlainText(), equals(':existing text'));
         expect(
           controller.selection,
           equals(
@@ -691,7 +691,7 @@ void main() {
         );
         controller.delete(from: 14, to: 22);
 
-        expect(controller.text.text, equals('existing text:'));
+        expect(controller.text.toPlainText(), equals('existing text:'));
       });
 
       test('from end with caret', () {
@@ -702,7 +702,7 @@ void main() {
         );
         controller.delete(from: 14, to: 22);
 
-        expect(controller.text.text, equals('existing text:'));
+        expect(controller.text.toPlainText(), equals('existing text:'));
         expect(
           controller.selection,
           equals(
@@ -720,7 +720,7 @@ void main() {
         );
         controller.delete(from: 14, to: 22);
 
-        expect(controller.text.text, equals('existing text:'));
+        expect(controller.text.toPlainText(), equals('existing text:'));
         expect(
           controller.selection,
           equals(
@@ -738,7 +738,7 @@ void main() {
         );
         controller.delete(from: 1, to: 9);
 
-        expect(controller.text.text, equals('[]'));
+        expect(controller.text.toPlainText(), equals('[]'));
       });
 
       test('from middle with crosscutting selection at beginning', () {
@@ -751,7 +751,7 @@ void main() {
         );
         controller.delete(from: 1, to: 9);
 
-        expect(controller.text.text, equals('[]'));
+        expect(controller.text.toPlainText(), equals('[]'));
         expect(
           controller.selection,
           equals(
@@ -773,7 +773,7 @@ void main() {
         );
         controller.delete(from: 1, to: 9);
 
-        expect(controller.text.text, equals('[]'));
+        expect(controller.text.toPlainText(), equals('[]'));
         expect(
           controller.selection,
           equals(const TextSelection.collapsed(offset: 1)),
@@ -790,7 +790,7 @@ void main() {
         );
         controller.delete(from: 1, to: 9);
 
-        expect(controller.text.text, equals('[]'));
+        expect(controller.text.toPlainText(), equals('[]'));
         expect(
           controller.selection,
           equals(
@@ -803,18 +803,81 @@ void main() {
       });
     });
 
-    group("clear", () {
-      test('notifies listeners', () {
+    group("clearing text and selection", () {
+      test("can remove the text, selection, and composing region at the same time", () {
         int listenerNotifyCount = 0;
-
         final controller = AttributedTextEditingController(
           text: AttributedText('my text'),
-        )..addListener(() {
+          selection: const TextSelection.collapsed(offset: 7),
+          composingRegion: const TextRange(start: 3, end: 7),
+        )
+          ..composingAttributions = {
+            boldAttribution,
+          }
+          ..addListener(() {
             listenerNotifyCount += 1;
           });
 
+        controller.clearTextAndSelection();
+
+        expect(controller.text.toPlainText(), isEmpty);
+        expect(
+          controller.selection,
+          const TextSelection.collapsed(offset: -1),
+        );
+        expect(controller.composingAttributions, isEmpty);
+        expect(controller.composingRegion, TextRange.empty);
+        expect(listenerNotifyCount, 1);
+
+        // Below here we want to validate that the old deprecated method
+        // .clear() does exactly the same thing as its replacement method
+        // .clearTextAndSelection().
+        //
+        // As soon as the deprecated method is removed, the below code will
+        // throw a compile error, at which time it will be safe to remove it.
+        controller
+          ..text = AttributedText('my text')
+          ..selection = const TextSelection.collapsed(offset: 7)
+          ..composingRegion = const TextRange(start: 3, end: 7)
+          ..composingAttributions = {boldAttribution};
+        listenerNotifyCount = 0;
+
+        // ignore: deprecated_member_use_from_same_package
         controller.clear();
 
+        expect(controller.text.toPlainText(), isEmpty);
+        expect(
+          controller.selection,
+          const TextSelection.collapsed(offset: -1),
+        );
+        expect(controller.composingAttributions, isEmpty);
+        expect(controller.composingRegion, TextRange.empty);
+        expect(listenerNotifyCount, 1);
+      });
+
+      test("can remove the text and composing region, and place the caret at the start, at the same time", () {
+        int listenerNotifyCount = 0;
+        final controller = AttributedTextEditingController(
+          text: AttributedText('my text'),
+          selection: const TextSelection.collapsed(offset: 7),
+          composingRegion: const TextRange(start: 3, end: 7),
+        )
+          ..composingAttributions = {
+            boldAttribution,
+          }
+          ..addListener(() {
+            listenerNotifyCount += 1;
+          });
+
+        controller.clearText();
+
+        expect(controller.text.toPlainText(), isEmpty);
+        expect(
+          controller.selection,
+          const TextSelection.collapsed(offset: 0),
+        );
+        expect(controller.composingAttributions, isEmpty);
+        expect(controller.composingRegion, TextRange.empty);
         expect(listenerNotifyCount, 1);
       });
     });

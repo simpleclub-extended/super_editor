@@ -38,9 +38,9 @@ void testWidgetsOnWebDesktop(
   bool skip = false,
   TestVariant<Object?> variant = const DefaultTestVariant(),
 }) {
-  testWidgetsOnMacWeb("$description (on MAC Web)", test, skip: skip, variant: variant);
-  testWidgetsOnWindowsWeb("$description (on Windows Web)", test, skip: skip, variant: variant);
-  testWidgetsOnLinuxWeb("$description (on Linux Web)", test, skip: skip, variant: variant);
+  testWidgetsOnMacWeb(description, test, skip: skip, variant: variant);
+  testWidgetsOnWindowsWeb(description, test, skip: skip, variant: variant);
+  testWidgetsOnLinuxWeb(description, test, skip: skip, variant: variant);
 }
 
 /// A widget test that runs a variant for every mobile platform on web, e.g.,
@@ -52,8 +52,19 @@ void testWidgetsOnWebMobile(
   bool skip = false,
   TestVariant<Object?> variant = const DefaultTestVariant(),
 }) {
-  testWidgetsOnWebIos("$description (on iOS Web)", test, skip: skip, variant: variant);
-  testWidgetsOnWebAndroid("$description (on Android Web)", test, skip: skip, variant: variant);
+  testWidgetsOnWebIos(description, test, skip: skip, variant: variant);
+  testWidgetsOnWebAndroid(description, test, skip: skip, variant: variant);
+}
+
+@isTestGroup
+void testWidgetsOnMacDesktopAndWeb(
+  String description,
+  WidgetTesterCallback test, {
+  bool skip = false,
+  TestVariant<Object?> variant = const DefaultTestVariant(),
+}) {
+  testWidgetsOnMac(description, test, skip: skip, variant: variant);
+  testWidgetsOnMacWeb(description, test, skip: skip, variant: variant);
 }
 
 @isTestGroup
@@ -63,7 +74,7 @@ void testWidgetsOnMacWeb(
   bool skip = false,
   TestVariant<Object?> variant = const DefaultTestVariant(),
 }) {
-  testWidgets(description, (tester) async {
+  testWidgets("$description (on MAC Web)", (tester) async {
     debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
     debugIsWebOverride = WebPlatformOverride.web;
 
@@ -110,7 +121,7 @@ void testWidgetsOnWebIos(
   bool skip = false,
   TestVariant<Object?> variant = const DefaultTestVariant(),
 }) {
-  testWidgets(description, (tester) async {
+  testWidgets("$description (on iOS Web)", (tester) async {
     debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
     debugIsWebOverride = WebPlatformOverride.web;
 
@@ -141,7 +152,7 @@ void testWidgetsOnWebAndroid(
   bool skip = false,
   TestVariant<Object?> variant = const DefaultTestVariant(),
 }) {
-  testWidgets(description, (tester) async {
+  testWidgets("$description (on Android Web)", (tester) async {
     debugDefaultTargetPlatformOverride = TargetPlatform.android;
     debugIsWebOverride = WebPlatformOverride.web;
 
@@ -161,7 +172,7 @@ void testWidgetsOnWindowsWeb(
   bool skip = false,
   TestVariant<Object?> variant = const DefaultTestVariant(),
 }) {
-  testWidgets(description, (tester) async {
+  testWidgets("$description (on Windows Web)", (tester) async {
     debugDefaultTargetPlatformOverride = TargetPlatform.windows;
     debugIsWebOverride = WebPlatformOverride.web;
 
@@ -185,7 +196,7 @@ void testWidgetsOnLinuxWeb(
   bool skip = false,
   TestVariant<Object?> variant = const DefaultTestVariant(),
 }) {
-  testWidgets(description, (tester) async {
+  testWidgets("$description (on Linux Web)", (tester) async {
     debugDefaultTargetPlatformOverride = TargetPlatform.linux;
     debugIsWebOverride = WebPlatformOverride.web;
 

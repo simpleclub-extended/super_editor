@@ -1,6 +1,8 @@
 import 'dart:math';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:super_editor/src/core/document_layout.dart';
 import 'package:super_editor/src/core/edit_context.dart';
@@ -13,6 +15,7 @@ import 'package:super_editor/src/infrastructure/flutter/flutter_scheduler.dart';
 import 'package:super_editor/src/infrastructure/ime_input_owner.dart';
 import 'package:super_editor/src/infrastructure/platforms/ios/ios_document_controls.dart';
 import 'package:super_editor/src/infrastructure/platforms/platform.dart';
+import 'package:super_editor/src/infrastructure/render_sliver_ext.dart';
 
 import '../document_hardware_keyboard/document_input_keyboard.dart';
 import 'document_delta_editing.dart';
@@ -42,6 +45,7 @@ class SuperEditorImeInteractor extends StatefulWidget {
     this.imePolicies = const SuperEditorImePolicies(),
     this.imeConfiguration = const SuperEditorImeConfiguration(),
     this.imeOverrides,
+    this.isImeConnected,
     this.hardwareKeyboardActions = const [],
     required this.selectorHandlers,
     this.floatingCursorController,
@@ -107,6 +111,12 @@ class SuperEditorImeInteractor extends StatefulWidget {
   /// Provide a [DeltaTextInputClientDecorator], to override the default behaviors
   /// for various IME messages.
   final DeltaTextInputClientDecorator? imeOverrides;
+
+  /// A (optional) notifier that's notified when the IME connection opens or closes.
+  ///
+  /// A `true` value means this interactor is connected to the platform's IME, a `false`
+  /// value means this interactor isn't connected to the platforms IME.
+  final ValueNotifier<bool>? isImeConnected;
 
   /// All the actions that the user can execute with physical hardware
   /// keyboard keys.
@@ -175,6 +185,15 @@ class SuperEditorImeInteractorState extends State<SuperEditorImeInteractor> impl
     _imeConnection.addListener(_onImeConnectionChange);
 
     _textInputConfiguration = widget.imeConfiguration.toTextInputConfiguration();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      // Synchronize the IME connection notifier with our IME connection state. We run
+      // this in a post-frame callback because the very first pump of the Super Editor
+      // widget tree won't have Super Editor connected as an IME delegate, yet.
+      if (widget.softwareKeyboardController != null) {
+        widget.isImeConnected?.value = widget.softwareKeyboardController!.isConnectedToIme;
+      }
+    });
   }
 
   @override
@@ -264,6 +283,7 @@ class SuperEditorImeInteractorState extends State<SuperEditorImeInteractor> impl
     if (_imeConnection.value == null) {
       _documentImeConnection.value = null;
       widget.imeOverrides?.client = null;
+      widget.isImeConnected?.value = false;
       return;
     }
 
@@ -271,6 +291,8 @@ class SuperEditorImeInteractorState extends State<SuperEditorImeInteractor> impl
     _documentImeConnection.value = _documentImeClient;
 
     _reportVisualInformationToIme();
+
+    widget.isImeConnected?.value = true;
   }
 
   void _configureImeClientDecorators() {
@@ -292,8 +314,8 @@ class SuperEditorImeInteractorState extends State<SuperEditorImeInteractor> impl
       return;
     }
 
-    final myRenderBox = context.findRenderObject() as RenderBox?;
-    if (myRenderBox != null && myRenderBox.hasSize) {
+    final myRenderSliver = context.findRenderObject() as RenderSliver?;
+    if (myRenderSliver != null && myRenderSliver.hasSize) {
       _reportSizeAndTransformToIme();
       _reportCaretRectToIme();
       _reportTextStyleToIme();
@@ -326,10 +348,10 @@ class SuperEditorImeInteractorState extends State<SuperEditorImeInteractor> impl
 
       (size, transform) = sizeAndTransform;
     } else {
-      final renderBox = context.findRenderObject() as RenderBox;
+      final renderSliver = context.findRenderObject() as RenderSliver;
 
-      size = renderBox.size;
-      transform = renderBox.getTransformTo(null);
+      size = renderSliver.size;
+      transform = renderSliver.getTransformTo(null);
     }
 
     _imeConnection.value!.setEditableSizeAndTransform(size, transform);
@@ -421,12 +443,12 @@ class SuperEditorImeInteractorState extends State<SuperEditorImeInteractor> impl
       return null;
     }
 
-    final renderBox = context.findRenderObject() as RenderBox;
+    final renderSliver = context.findRenderObject() as RenderSliver;
 
     // The value returned from getRectForPosition is in the document's layout coordinates.
     // As the document layout is scrollable, this rect might be outside of the viewport height.
     // Map the offset to the editor's viewport coordinates.
-    final caretOffset = renderBox.globalToLocal(
+    final caretOffset = renderSliver.globalToLocal(
       docLayout.getGlobalOffsetFromDocumentOffset(rectInDocLayoutSpace.topLeft),
     );
 
@@ -647,7 +669,9 @@ void insertNewLine(SuperEditorContext context) {
   if (CurrentPlatform.isWeb) {
     return;
   }
-  context.commonOps.insertBlockLevelNewline();
+  context.editor.execute([
+    InsertNewlineAtCaretRequest(),
+  ]);
 }
 
 void deleteWordBackward(SuperEditorContext context) {
@@ -659,7 +683,7 @@ void deleteWordBackward(SuperEditorContext context) {
   );
 
   if (didMove) {
-    context.commonOps.deleteSelection();
+    context.commonOps.deleteSelection(TextAffinity.upstream);
   }
 }
 
@@ -672,7 +696,7 @@ void deleteWordForward(SuperEditorContext context) {
   );
 
   if (didMove) {
-    context.commonOps.deleteSelection();
+    context.commonOps.deleteSelection(TextAffinity.downstream);
   }
 }
 
@@ -685,7 +709,7 @@ void deleteToBeginningOfLine(SuperEditorContext context) {
   );
 
   if (didMove) {
-    context.commonOps.deleteSelection();
+    context.commonOps.deleteSelection(TextAffinity.upstream);
   }
 }
 
@@ -698,7 +722,7 @@ void deleteToEndOfLine(SuperEditorContext context) {
   );
 
   if (didMove) {
-    context.commonOps.deleteSelection();
+    context.commonOps.deleteSelection(TextAffinity.downstream);
   }
 }
 

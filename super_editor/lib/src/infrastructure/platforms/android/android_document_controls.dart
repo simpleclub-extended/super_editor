@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:follow_the_leader/follow_the_leader.dart';
 import 'package:super_editor/src/core/document.dart';
 import 'package:super_editor/src/core/document_composer.dart';
@@ -14,6 +15,7 @@ import 'package:super_editor/src/infrastructure/documents/document_layers.dart';
 import 'package:super_editor/src/infrastructure/documents/selection_leader_document_layer.dart';
 import 'package:super_editor/src/infrastructure/flutter/flutter_scheduler.dart';
 import 'package:super_editor/src/infrastructure/platforms/mobile_documents.dart';
+import 'package:super_editor/src/infrastructure/render_sliver_ext.dart';
 import 'package:super_text_layout/super_text_layout.dart';
 
 /// A document layer that positions a leader widget around the user's selection,
@@ -191,7 +193,7 @@ class AndroidControlsDocumentLayerState
   @override
   void initState() {
     super.initState();
-    _caretBlinkController = BlinkController(tickerProvider: this);
+    _caretBlinkController = BlinkController.withTimer();
 
     _previousSelection = widget.selection.value;
     widget.selection.addListener(_onSelectionChange);
@@ -205,11 +207,13 @@ class AndroidControlsDocumentLayerState
       _controlsController!.shouldCaretBlink.removeListener(_onBlinkModeChange);
       _controlsController!.caretJumpToOpaqueSignal.removeListener(_caretJumpToOpaque);
       _controlsController!.shouldShowCollapsedHandle.removeListener(_onShouldShowCollapsedHandleChange);
+      _controlsController!.areSelectionHandlesAllowed.removeListener(_onSelectionHandlesAllowedChange);
     }
 
     _controlsController = SuperEditorAndroidControlsScope.rootOf(context);
     _controlsController!.shouldCaretBlink.addListener(_onBlinkModeChange);
     _controlsController!.caretJumpToOpaqueSignal.addListener(_caretJumpToOpaque);
+    _controlsController!.areSelectionHandlesAllowed.addListener(_onSelectionHandlesAllowedChange);
 
     /// Listen for changes about whether we want to show the collapsed handle
     /// or whether we want to show expanded handles for a selection. We listen to
@@ -236,6 +240,7 @@ class AndroidControlsDocumentLayerState
     widget.selection.removeListener(_onSelectionChange);
     _controlsController?.shouldCaretBlink.removeListener(_onBlinkModeChange);
     _controlsController!.shouldShowCollapsedHandle.removeListener(_onShouldShowCollapsedHandleChange);
+    _controlsController!.areSelectionHandlesAllowed.removeListener(_onSelectionHandlesAllowedChange);
 
     _caretBlinkController.dispose();
     super.dispose();
@@ -309,11 +314,23 @@ class AndroidControlsDocumentLayerState
     });
   }
 
+  void _onSelectionHandlesAllowedChange() {
+    setState(() {
+      // The controller went from allowing selection handles to disallowing them, or vis-a-versa.
+      // Rebuild this widget to show/hide the handles.
+    });
+  }
+
   @override
   DocumentSelectionLayout? computeLayoutDataWithDocumentLayout(
       BuildContext contentLayersContext, BuildContext documentContext, DocumentLayout documentLayout) {
     final selection = widget.selection.value;
     if (selection == null) {
+      return null;
+    }
+
+    if (!_controlsController!.areSelectionHandlesAllowed.value) {
+      // We don't want to show any selection handles.
       return null;
     }
 
@@ -335,7 +352,7 @@ class AndroidControlsDocumentLayerState
       // The computeLayoutData method is called during the layer's build, which means that the
       // layer's RenderBox is outdated, because it wasn't laid out yet for the current frame.
       // Use the content's RenderBox, which was already laid out for the current frame.
-      final contentBox = documentContext.findRenderObject() as RenderBox?;
+      final contentBox = documentContext.findRenderObject() as RenderSliver?;
       if (contentBox != null && contentBox.hasSize && caretRect.left + caretWidth >= contentBox.size.width) {
         // Ajust the caret position to make it entirely visible because it's currently placed
         // partially or entirely outside of the layers' bounds. This can happen for downstream selections
@@ -412,7 +429,7 @@ class AndroidControlsDocumentLayerState
           builder: (context, child) {
             return ColoredBox(
               key: DocumentKeys.caret,
-              color: caretColor.withOpacity(_caretBlinkController.opacity),
+              color: caretColor.withValues(alpha: _caretBlinkController.opacity),
             );
           },
         ),

@@ -60,9 +60,7 @@ class _SelectedTextColorsDemoState extends State<SelectedTextColorsDemo> {
   Widget build(BuildContext context) {
     return InTheLabScaffold(
       content: Center(
-        child: IntrinsicHeight(
-          child: _buildEditor(),
-        ),
+        child: _buildEditor(),
       ),
       supplemental: _buildControlPanel(),
       overlay: _buildOverlay(),
@@ -72,8 +70,7 @@ class _SelectedTextColorsDemoState extends State<SelectedTextColorsDemo> {
   Widget _buildEditor() {
     return SuperEditor(
       editor: _editor,
-      document: _document,
-      composer: _composer,
+      shrinkWrap: true,
       stylesheet: defaultStylesheet.copyWith(
         selectedTextColorStrategy: _selectedTextColorStrategy,
         addRulesAfter: [
@@ -183,7 +180,7 @@ class _SelectedTextColorsDemoState extends State<SelectedTextColorsDemo> {
           border: Border.all(color: Colors.white, width: 4),
           color: color,
           boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 5, offset: Offset(0, 5)),
+            BoxShadow(color: Colors.black.withValues(alpha: 0.5), blurRadius: 5, offset: Offset(0, 5)),
           ],
         ),
       ),
@@ -302,7 +299,7 @@ class ColorPickerPopoverModal extends StatelessWidget {
             border: Border.all(color: Colors.white, width: 2),
             color: color,
             boxShadow: [
-              BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 3, offset: Offset(0, 3)),
+              BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 3, offset: Offset(0, 3)),
             ],
           ),
         ),

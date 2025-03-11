@@ -9,11 +9,13 @@ import 'layout_single_column/layout_single_column.dart';
 
 /// [DocumentNode] for a horizontal rule, which represents a full-width
 /// horizontal separation in a document.
-class HorizontalRuleNode extends BlockNode with ChangeNotifier {
+@immutable
+class HorizontalRuleNode extends BlockNode {
   HorizontalRuleNode({
     required this.id,
+    super.metadata,
   }) {
-    putMetadataValue("blockType", const NamedAttribution("horizontalRule"));
+    initAddToMetadata({"blockType": const NamedAttribution("horizontalRule")});
   }
 
   @override
@@ -31,6 +33,27 @@ class HorizontalRuleNode extends BlockNode with ChangeNotifier {
   @override
   bool hasEquivalentContent(DocumentNode other) {
     return other is HorizontalRuleNode;
+  }
+
+  @override
+  DocumentNode copyWithAddedMetadata(Map<String, dynamic> newProperties) {
+    return HorizontalRuleNode(
+      id: id,
+      metadata: {
+        ...metadata,
+        ...newProperties,
+      },
+    );
+  }
+
+  @override
+  DocumentNode copyAndReplaceMetadata(Map<String, dynamic> newMetadata) {
+    return HorizontalRuleNode(id: id, metadata: newMetadata);
+  }
+
+  @override
+  HorizontalRuleNode copy() {
+    return HorizontalRuleNode(id: id);
   }
 
   @override

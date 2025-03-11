@@ -85,7 +85,7 @@ void main() {
           .createDocument()
           .withCustomContent(
             MutableDocument(
-              nodes: [_UnkownNode(id: '1')],
+              nodes: [_UnknownNode(id: '1')],
             ),
           )
           .pump();
@@ -140,8 +140,7 @@ class HintTextComponentBuilder implements ComponentBuilder {
       ),
       textSelection: textSelection,
       selectionColor: componentViewModel.selectionColor,
-      composingRegion: componentViewModel.composingRegion,
-      showComposingUnderline: componentViewModel.showComposingUnderline,
+      underlines: componentViewModel.createUnderlines(),
     );
   }
 }
@@ -164,7 +163,7 @@ Future<void> _pumpImageTestApp(
                 width: double.infinity,
               ).toMetadata(),
             ),
-            ...longTextDoc().nodes,
+            ...longTextDoc(),
           ],
         ),
       )
@@ -205,12 +204,28 @@ class _FakeImageComponentBuilder implements ComponentBuilder {
 ///
 /// Used to simulate an app-level node type that the editor
 /// doesn't know about.
-class _UnkownNode extends BlockNode with ChangeNotifier {
-  _UnkownNode({required this.id});
+@immutable
+class _UnknownNode extends BlockNode {
+  _UnknownNode({required this.id});
+
+  @override
+  final String id;
 
   @override
   String? copyContent(NodeSelection selection) => '';
 
   @override
-  final String id;
+  _UnknownNode copyWithAddedMetadata(Map<String, dynamic> newProperties) {
+    return _UnknownNode(id: id);
+  }
+
+  @override
+  _UnknownNode copyAndReplaceMetadata(Map<String, dynamic> newMetadata) {
+    return _UnknownNode(id: id);
+  }
+
+  @override
+  _UnknownNode copy() {
+    return _UnknownNode(id: id);
+  }
 }

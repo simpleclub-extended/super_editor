@@ -172,7 +172,7 @@ void main() {
 
       // Ensure that the text was edited upon pressing backspace.
       expect(
-        SuperEditorInspector.findTextInComponent("Editor2_Header").text,
+        SuperEditorInspector.findTextInComponent("Editor2_Header").toPlainText(),
         "Document #",
       );
 
@@ -180,7 +180,7 @@ void main() {
 
       // Ensure that the text was inserted into the paragraph.
       expect(
-        SuperEditorInspector.findTextInComponent("Editor2_Header").text,
+        SuperEditorInspector.findTextInComponent("Editor2_Header").toPlainText(),
         "Document #Edit",
       );
     });
@@ -294,8 +294,6 @@ class _SwitchEditorsDemoState extends State<_SwitchEditorsDemo> {
             Expanded(
               child: SuperEditor(
                 editor: _activeDocumentEditor,
-                document: _activeDocument,
-                composer: _activeComposer,
                 stylesheet: defaultStylesheet.copyWith(
                   documentPadding: const EdgeInsets.symmetric(vertical: 56, horizontal: 24),
                 ),
