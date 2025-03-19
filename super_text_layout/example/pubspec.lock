@@ -36,11 +36,12 @@ packages:
   attributed_text:
     dependency: transitive
     description:
-      name: attributed_text
-      sha256: fb65cf441784612544eda4d5df7a3caad56e7f673c68bf1d48d9048228375189
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.4.0"
+      path: attributed_text
+      ref: simpleclub-main
+      resolved-ref: "5047e1370eb19699d73774cc8a31cf2bf4532f67"
+      url: "https://github.com/simpleclub-extended/super_editor"
+    source: git
+    version: "0.4.4"
   boolean_selector:
     dependency: transitive
     description:
@@ -382,7 +383,7 @@ packages:
       path: ".."
       relative: true
     source: path
-    version: "0.1.17"
+    version: "0.1.18"
   term_glyph:
     dependency: transitive
     description:

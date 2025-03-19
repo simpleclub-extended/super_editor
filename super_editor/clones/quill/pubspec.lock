@@ -39,7 +39,7 @@ packages:
       path: "../../../attributed_text"
       relative: true
     source: path
-    version: "0.4.1"
+    version: "0.4.4"
   boolean_selector:
     dependency: transitive
     description:
@@ -506,7 +506,7 @@ packages:
       path: "../.."
       relative: true
     source: path
-    version: "0.3.0-dev.13"
+    version: "0.3.0-dev.20"
   super_editor_markdown:
     dependency: "direct main"
     description:
@@ -520,14 +520,15 @@ packages:
       path: "../../../super_editor_quill"
       relative: true
     source: path
-    version: "0.1.0-dev.8"
+    version: "0.1.0-dev.9"
   super_keyboard:
     dependency: transitive
     description:
-      name: super_keyboard
-      sha256: c8e303cd7bc1fc62732213f0f2660273a078be23eae7a4219d0ab3dd0b0ccb9a
-      url: "https://pub.dev"
-    source: hosted
+      path: super_keyboard
+      ref: simpleclub-main
+      resolved-ref: "5047e1370eb19699d73774cc8a31cf2bf4532f67"
+      url: "https://github.com/simpleclub-extended/super_editor"
+    source: git
     version: "0.1.0"
   super_text_layout:
     dependency: "direct main"

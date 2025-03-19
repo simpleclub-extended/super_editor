@@ -36,11 +36,12 @@ packages:
   attributed_text:
     dependency: transitive
     description:
-      name: attributed_text
-      sha256: d16c10850371421a778474ac24c24b4ab8708e3e53f3796f8d9ea2a41a25a59a
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.4.2"
+      path: attributed_text
+      ref: simpleclub-main
+      resolved-ref: "5047e1370eb19699d73774cc8a31cf2bf4532f67"
+      url: "https://github.com/simpleclub-extended/super_editor"
+    source: git
+    version: "0.4.4"
   boolean_selector:
     dependency: transitive
     description:
@@ -498,7 +499,7 @@ packages:
       path: "../../super_editor"
       relative: true
     source: path
-    version: "0.3.0-dev.15"
+    version: "0.3.0-dev.20"
   super_editor_spellcheck:
     dependency: "direct main"
     description:
@@ -509,18 +510,20 @@ packages:
   super_keyboard:
     dependency: transitive
     description:
-      name: super_keyboard
-      sha256: c8e303cd7bc1fc62732213f0f2660273a078be23eae7a4219d0ab3dd0b0ccb9a
-      url: "https://pub.dev"
-    source: hosted
+      path: super_keyboard
+      ref: simpleclub-main
+      resolved-ref: "5047e1370eb19699d73774cc8a31cf2bf4532f67"
+      url: "https://github.com/simpleclub-extended/super_editor"
+    source: git
     version: "0.1.0"
   super_text_layout:
     dependency: transitive
     description:
-      name: super_text_layout
-      sha256: e25f01ceb809118da66fd095b3dcdc608a611bf45e364f303e7f9f0af0c5f8d1
-      url: "https://pub.dev"
-    source: hosted
+      path: super_text_layout
+      ref: simpleclub-main
+      resolved-ref: "5047e1370eb19699d73774cc8a31cf2bf4532f67"
+      url: "https://github.com/simpleclub-extended/super_editor"
+    source: git
     version: "0.1.18"
   sync_http:
     dependency: transitive
