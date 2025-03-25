@@ -537,6 +537,127 @@ class _DocumentMouseInteractorState extends State<DocumentMouseInteractor> with 
     ]);
   }
 
+  void _handleSecondaryTapDownHandlers(TapDownDetails details, Offset docOffset) {
+    if (widget.contentTapHandlers != null) {
+      for (final handler in widget.contentTapHandlers!) {
+        final result = handler.onSecondaryTapDown(
+          DocumentTapDetails(
+            documentLayout: _docLayout,
+            layoutOffset: docOffset,
+            globalOffset: details.globalPosition,
+          ),
+        );
+        if (result == TapHandlingInstruction.halt) {
+          // The custom tap handler doesn't want us to react at all
+          // to the tap.
+          return;
+        }
+      }
+    }
+  }
+
+  void _onSecondaryTapDown(TapDownDetails details) {
+    editorGesturesLog.info("Secondary tap down on document");
+    final docOffset = _getDocOffsetFromGlobalOffset(details.globalPosition);
+    editorGesturesLog.fine(" - document offset: $docOffset");
+
+    final docPosition = _docLayout.getDocumentPositionNearestToOffset(docOffset);
+
+    // Check for current selection and do not attempt a new one if one is
+    // already there.
+    if (_currentSelection != null) {
+      final selectionRect = _docLayout.getRectForSelection(_currentSelection!.base, _currentSelection!.extent);
+      if (selectionRect != null && selectionRect.contains(docOffset)) {
+        _handleSecondaryTapDownHandlers(details, docOffset);
+        return;
+      }
+    }
+
+    // Select word if no selection
+    editorGesturesLog.fine(" - tapped document position: $docPosition");
+    if (docPosition != null) {
+      final tappedComponent = _docLayout.getComponentByNodeId(docPosition.nodeId)!;
+      if (!tappedComponent.isVisualSelectionSupported()) {
+        return;
+      }
+    }
+
+    _selectionType = SelectionType.word;
+    bool didSelectContent = false;
+
+    if (docPosition != null) {
+      didSelectContent = _selectWordAt(
+        docPosition: docPosition,
+        docLayout: _docLayout,
+      );
+      if (didSelectContent) {
+        // We selected a word - store the word bounds so that we can correctly
+        // select by word when moving upstream or downstream from this word.
+        _wordSelectionUpstream = widget.selectionNotifier.value!.start;
+        _wordSelectionDownstream = widget.selectionNotifier.value!.end;
+      }
+
+      if (!didSelectContent) {
+        didSelectContent = _selectBlockAt(docPosition);
+      }
+
+      if (!didSelectContent) {
+        // Place the document selection at the location where the
+        // user tapped.
+        _selectPosition(docPosition);
+      }
+    }
+
+    // Only clear the existing selection if we were not able to place a new selection,
+    // because clearing the selection might close the IME connection, depending
+    // on the `SuperEditorImePolicies` used. If we cleared the selection and then
+    // placed a new selection, the IME connection would be closed and then immediately
+    // reopened, and this doesn't seem to work on Safari and Firefox.
+    if (!didSelectContent) {
+      _clearSelection();
+    }
+
+    // Only call tap handlers here after selection so it is available to perform
+    // requests on.
+    _handleSecondaryTapDownHandlers(details, docOffset);
+  }
+
+  void _onSecondaryTapUp(TapUpDetails details) {
+    editorGesturesLog.info("Secondary tap up on document");
+    final docOffset = _getDocOffsetFromGlobalOffset(details.globalPosition);
+    editorGesturesLog.fine(" - document offset: $docOffset");
+
+    if (widget.contentTapHandlers != null) {
+      for (final handler in widget.contentTapHandlers!) {
+        final result = handler.onSecondaryTapUp(
+          DocumentTapDetails(
+            documentLayout: _docLayout,
+            layoutOffset: docOffset,
+            globalOffset: details.globalPosition,
+          ),
+        );
+        if (result == TapHandlingInstruction.halt) {
+          // The custom tap handler doesn't want us to react at all
+          // to the tap.
+          return;
+        }
+      }
+    }
+  }
+
+  void _onSecondaryTapCancel() {
+    if (widget.contentTapHandlers != null) {
+      for (final handler in widget.contentTapHandlers!) {
+        final result = handler.onSecondaryTapCancel();
+        if (result == TapHandlingInstruction.halt) {
+          // The custom tap handler doesn't want us to react at all
+          // to the tap.
+          return;
+        }
+      }
+    }
+  }
+
   void _onPanStart(DragStartDetails details) {
     editorGesturesLog.info("Pan start on document, global offset: ${details.globalPosition}, device: ${details.kind}");
 
@@ -820,37 +941,43 @@ Updating drag selection:
     required Widget child,
   }) {
     final gestureSettings = MediaQuery.maybeOf(context)?.gestureSettings;
-    return RawGestureDetector(
+    return GestureDetector(
       behavior: HitTestBehavior.translucent,
-      gestures: <Type, GestureRecognizerFactory>{
-        TapSequenceGestureRecognizer: GestureRecognizerFactoryWithHandlers<TapSequenceGestureRecognizer>(
-          () => TapSequenceGestureRecognizer(),
-          (TapSequenceGestureRecognizer recognizer) {
-            recognizer
-              ..onTapUp = _onTapUp
-              ..onDoubleTapDown = _onDoubleTapDown
-              ..onDoubleTap = _onDoubleTap
-              ..onTripleTapDown = _onTripleTapDown
-              ..onTripleTap = _onTripleTap
-              ..gestureSettings = gestureSettings;
-          },
-        ),
-        PanGestureRecognizer: GestureRecognizerFactoryWithHandlers<PanGestureRecognizer>(
-          () => PanGestureRecognizer(supportedDevices: {
-            PointerDeviceKind.mouse,
-            PointerDeviceKind.touch,
-          }),
-          (PanGestureRecognizer recognizer) {
-            recognizer
-              ..onStart = _onPanStart
-              ..onUpdate = _onPanUpdate
-              ..onEnd = _onPanEnd
-              ..onCancel = _onPanCancel
-              ..gestureSettings = gestureSettings;
-          },
-        ),
-      },
-      child: child,
+      onSecondaryTapDown: _onSecondaryTapDown,
+      onSecondaryTapUp: _onSecondaryTapUp,
+      onSecondaryTapCancel: _onSecondaryTapCancel,
+      child: RawGestureDetector(
+        behavior: HitTestBehavior.translucent,
+        gestures: <Type, GestureRecognizerFactory>{
+          TapSequenceGestureRecognizer: GestureRecognizerFactoryWithHandlers<TapSequenceGestureRecognizer>(
+            () => TapSequenceGestureRecognizer(),
+            (TapSequenceGestureRecognizer recognizer) {
+              recognizer
+                ..onTapUp = _onTapUp
+                ..onDoubleTapDown = _onDoubleTapDown
+                ..onDoubleTap = _onDoubleTap
+                ..onTripleTapDown = _onTripleTapDown
+                ..onTripleTap = _onTripleTap
+                ..gestureSettings = gestureSettings;
+            },
+          ),
+          PanGestureRecognizer: GestureRecognizerFactoryWithHandlers<PanGestureRecognizer>(
+            () => PanGestureRecognizer(supportedDevices: {
+              PointerDeviceKind.mouse,
+              PointerDeviceKind.touch,
+            }),
+            (PanGestureRecognizer recognizer) {
+              recognizer
+                ..onStart = _onPanStart
+                ..onUpdate = _onPanUpdate
+                ..onEnd = _onPanEnd
+                ..onCancel = _onPanCancel
+                ..gestureSettings = gestureSettings;
+            },
+          ),
+        },
+        child: child,
+      ),
     );
   }
 }
