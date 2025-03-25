@@ -537,6 +537,65 @@ class _DocumentMouseInteractorState extends State<DocumentMouseInteractor> with 
     ]);
   }
 
+  void _onSecondaryTapDown(TapDownDetails details) {
+    editorGesturesLog.info("Secondary tap down on document");
+    final docOffset = _getDocOffsetFromGlobalOffset(details.globalPosition);
+    editorGesturesLog.fine(" - document offset: $docOffset");
+
+    if (widget.contentTapHandlers != null) {
+      for (final handler in widget.contentTapHandlers!) {
+        final result = handler.onSecondaryTapDown(
+          DocumentTapDetails(
+            documentLayout: _docLayout,
+            layoutOffset: docOffset,
+            globalOffset: details.globalPosition,
+          ),
+        );
+        if (result == TapHandlingInstruction.halt) {
+          // The custom tap handler doesn't want us to react at all
+          // to the tap.
+          return;
+        }
+      }
+    }
+  }
+
+  void _onSecondaryTapUp(TapUpDetails details) {
+    editorGesturesLog.info("Secondary tap up on document");
+    final docOffset = _getDocOffsetFromGlobalOffset(details.globalPosition);
+    editorGesturesLog.fine(" - document offset: $docOffset");
+
+    if (widget.contentTapHandlers != null) {
+      for (final handler in widget.contentTapHandlers!) {
+        final result = handler.onSecondaryTapUp(
+          DocumentTapDetails(
+            documentLayout: _docLayout,
+            layoutOffset: docOffset,
+            globalOffset: details.globalPosition,
+          ),
+        );
+        if (result == TapHandlingInstruction.halt) {
+          // The custom tap handler doesn't want us to react at all
+          // to the tap.
+          return;
+        }
+      }
+    }
+  }
+
+  void _onSecondaryTapCancel() {
+    if (widget.contentTapHandlers != null) {
+      for (final handler in widget.contentTapHandlers!) {
+        final result = handler.onSecondaryTapCancel();
+        if (result == TapHandlingInstruction.halt) {
+          // The custom tap handler doesn't want us to react at all
+          // to the tap.
+          return;
+        }
+      }
+    }
+  }
+
   void _onPanStart(DragStartDetails details) {
     editorGesturesLog.info("Pan start on document, global offset: ${details.globalPosition}, device: ${details.kind}");
 
@@ -820,37 +879,42 @@ Updating drag selection:
     required Widget child,
   }) {
     final gestureSettings = MediaQuery.maybeOf(context)?.gestureSettings;
-    return RawGestureDetector(
-      behavior: HitTestBehavior.translucent,
-      gestures: <Type, GestureRecognizerFactory>{
-        TapSequenceGestureRecognizer: GestureRecognizerFactoryWithHandlers<TapSequenceGestureRecognizer>(
-          () => TapSequenceGestureRecognizer(),
-          (TapSequenceGestureRecognizer recognizer) {
-            recognizer
-              ..onTapUp = _onTapUp
-              ..onDoubleTapDown = _onDoubleTapDown
-              ..onDoubleTap = _onDoubleTap
-              ..onTripleTapDown = _onTripleTapDown
-              ..onTripleTap = _onTripleTap
-              ..gestureSettings = gestureSettings;
-          },
-        ),
-        PanGestureRecognizer: GestureRecognizerFactoryWithHandlers<PanGestureRecognizer>(
-          () => PanGestureRecognizer(supportedDevices: {
-            PointerDeviceKind.mouse,
-            PointerDeviceKind.touch,
-          }),
-          (PanGestureRecognizer recognizer) {
-            recognizer
-              ..onStart = _onPanStart
-              ..onUpdate = _onPanUpdate
-              ..onEnd = _onPanEnd
-              ..onCancel = _onPanCancel
-              ..gestureSettings = gestureSettings;
-          },
-        ),
-      },
-      child: child,
+    return GestureDetector(
+      onSecondaryTapDown: _onSecondaryTapDown,
+      onSecondaryTapUp: _onSecondaryTapUp,
+      onSecondaryTapCancel: _onSecondaryTapCancel,
+      child: RawGestureDetector(
+        behavior: HitTestBehavior.translucent,
+        gestures: <Type, GestureRecognizerFactory>{
+          TapSequenceGestureRecognizer: GestureRecognizerFactoryWithHandlers<TapSequenceGestureRecognizer>(
+            () => TapSequenceGestureRecognizer(),
+            (TapSequenceGestureRecognizer recognizer) {
+              recognizer
+                ..onTapUp = _onTapUp
+                ..onDoubleTapDown = _onDoubleTapDown
+                ..onDoubleTap = _onDoubleTap
+                ..onTripleTapDown = _onTripleTapDown
+                ..onTripleTap = _onTripleTap
+                ..gestureSettings = gestureSettings;
+            },
+          ),
+          PanGestureRecognizer: GestureRecognizerFactoryWithHandlers<PanGestureRecognizer>(
+            () => PanGestureRecognizer(supportedDevices: {
+              PointerDeviceKind.mouse,
+              PointerDeviceKind.touch,
+            }),
+            (PanGestureRecognizer recognizer) {
+              recognizer
+                ..onStart = _onPanStart
+                ..onUpdate = _onPanUpdate
+                ..onEnd = _onPanEnd
+                ..onCancel = _onPanCancel
+                ..gestureSettings = gestureSettings;
+            },
+          ),
+        },
+        child: child,
+      ),
     );
   }
 }

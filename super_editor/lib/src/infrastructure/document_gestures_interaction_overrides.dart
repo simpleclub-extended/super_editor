@@ -32,6 +32,18 @@ abstract class ContentTapDelegate with ChangeNotifier {
     return TapHandlingInstruction.continueHandling;
   }
 
+  TapHandlingInstruction onSecondaryTapDown(DocumentTapDetails details) {
+    return TapHandlingInstruction.continueHandling;
+  }
+
+  TapHandlingInstruction onSecondaryTapUp(DocumentTapDetails details) {
+    return TapHandlingInstruction.continueHandling;
+  }
+
+  TapHandlingInstruction onSecondaryTapCancel() {
+    return TapHandlingInstruction.continueHandling;
+  }
+
   TapHandlingInstruction onPanStart(DocumentTapDetails details) {
     return TapHandlingInstruction.continueHandling;
   }
