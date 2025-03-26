@@ -617,6 +617,8 @@ class _DocumentMouseInteractorState extends State<DocumentMouseInteractor> with 
       _clearSelection();
     }
 
+    // Only call tap handlers here after selection so it is available to perform
+    // requests on.
     tapHandlers();
   }
 
