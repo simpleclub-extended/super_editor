@@ -537,29 +537,29 @@ class _DocumentMouseInteractorState extends State<DocumentMouseInteractor> with 
     ]);
   }
 
+  void _handleSecondaryTapDownHandlers(TapDownDetails details, Offset docOffset) {
+    if (widget.contentTapHandlers != null) {
+      for (final handler in widget.contentTapHandlers!) {
+        final result = handler.onSecondaryTapDown(
+          DocumentTapDetails(
+            documentLayout: _docLayout,
+            layoutOffset: docOffset,
+            globalOffset: details.globalPosition,
+          ),
+        );
+        if (result == TapHandlingInstruction.halt) {
+          // The custom tap handler doesn't want us to react at all
+          // to the tap.
+          return;
+        }
+      }
+    }
+  }
+
   void _onSecondaryTapDown(TapDownDetails details) {
     editorGesturesLog.info("Secondary tap down on document");
     final docOffset = _getDocOffsetFromGlobalOffset(details.globalPosition);
     editorGesturesLog.fine(" - document offset: $docOffset");
-
-    void tapHandlers() {
-      if (widget.contentTapHandlers != null) {
-        for (final handler in widget.contentTapHandlers!) {
-          final result = handler.onSecondaryTapDown(
-            DocumentTapDetails(
-              documentLayout: _docLayout,
-              layoutOffset: docOffset,
-              globalOffset: details.globalPosition,
-            ),
-          );
-          if (result == TapHandlingInstruction.halt) {
-            // The custom tap handler doesn't want us to react at all
-            // to the tap.
-            return;
-          }
-        }
-      }
-    }
 
     final docPosition = _docLayout.getDocumentPositionNearestToOffset(docOffset);
 
@@ -568,7 +568,7 @@ class _DocumentMouseInteractorState extends State<DocumentMouseInteractor> with 
     if (_currentSelection != null) {
       final selectionRect = _docLayout.getRectForSelection(_currentSelection!.base, _currentSelection!.extent);
       if (selectionRect != null && selectionRect.contains(docOffset)) {
-        tapHandlers();
+        _handleSecondaryTapDownHandlers(details, docOffset);
         return;
       }
     }
@@ -619,7 +619,7 @@ class _DocumentMouseInteractorState extends State<DocumentMouseInteractor> with 
 
     // Only call tap handlers here after selection so it is available to perform
     // requests on.
-    tapHandlers();
+    _handleSecondaryTapDownHandlers(details, docOffset);
   }
 
   void _onSecondaryTapUp(TapUpDetails details) {
