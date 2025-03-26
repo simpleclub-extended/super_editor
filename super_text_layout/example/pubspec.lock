@@ -37,7 +37,7 @@ packages:
     dependency: transitive
     description:
       path: attributed_text
-      ref: task/secondary-tap-support
+      ref: simpleclub-stable
       resolved-ref: "78d78b55c254038de876e4381d6075a0977cf395"
       url: "https://github.com/simpleclub-extended/super_editor"
     source: git
