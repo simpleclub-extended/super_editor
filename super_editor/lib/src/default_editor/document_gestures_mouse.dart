@@ -542,22 +542,82 @@ class _DocumentMouseInteractorState extends State<DocumentMouseInteractor> with 
     final docOffset = _getDocOffsetFromGlobalOffset(details.globalPosition);
     editorGesturesLog.fine(" - document offset: $docOffset");
 
-    if (widget.contentTapHandlers != null) {
-      for (final handler in widget.contentTapHandlers!) {
-        final result = handler.onSecondaryTapDown(
-          DocumentTapDetails(
-            documentLayout: _docLayout,
-            layoutOffset: docOffset,
-            globalOffset: details.globalPosition,
-          ),
-        );
-        if (result == TapHandlingInstruction.halt) {
-          // The custom tap handler doesn't want us to react at all
-          // to the tap.
-          return;
+    void tapHandlers() {
+      if (widget.contentTapHandlers != null) {
+        for (final handler in widget.contentTapHandlers!) {
+          final result = handler.onSecondaryTapDown(
+            DocumentTapDetails(
+              documentLayout: _docLayout,
+              layoutOffset: docOffset,
+              globalOffset: details.globalPosition,
+            ),
+          );
+          if (result == TapHandlingInstruction.halt) {
+            // The custom tap handler doesn't want us to react at all
+            // to the tap.
+            return;
+          }
         }
       }
     }
+
+    final docPosition = _docLayout.getDocumentPositionNearestToOffset(docOffset);
+
+    // Check for current selection and do not attempt a new one if one is
+    // already there.
+    if (_currentSelection != null) {
+      final selectionRect = _docLayout.getRectForSelection(_currentSelection!.base, _currentSelection!.extent);
+      if (selectionRect != null && selectionRect.contains(docOffset)) {
+        tapHandlers();
+        return;
+      }
+    }
+
+    // Select word if no selection
+    editorGesturesLog.fine(" - tapped document position: $docPosition");
+    if (docPosition != null) {
+      final tappedComponent = _docLayout.getComponentByNodeId(docPosition.nodeId)!;
+      if (!tappedComponent.isVisualSelectionSupported()) {
+        return;
+      }
+    }
+
+    _selectionType = SelectionType.word;
+    bool didSelectContent = false;
+
+    if (docPosition != null) {
+      didSelectContent = _selectWordAt(
+        docPosition: docPosition,
+        docLayout: _docLayout,
+      );
+      if (didSelectContent) {
+        // We selected a word - store the word bounds so that we can correctly
+        // select by word when moving upstream or downstream from this word.
+        _wordSelectionUpstream = widget.selectionNotifier.value!.start;
+        _wordSelectionDownstream = widget.selectionNotifier.value!.end;
+      }
+
+      if (!didSelectContent) {
+        didSelectContent = _selectBlockAt(docPosition);
+      }
+
+      if (!didSelectContent) {
+        // Place the document selection at the location where the
+        // user tapped.
+        _selectPosition(docPosition);
+      }
+    }
+
+    // Only clear the existing selection if we were not able to place a new selection,
+    // because clearing the selection might close the IME connection, depending
+    // on the `SuperEditorImePolicies` used. If we cleared the selection and then
+    // placed a new selection, the IME connection would be closed and then immediately
+    // reopened, and this doesn't seem to work on Safari and Firefox.
+    if (!didSelectContent) {
+      _clearSelection();
+    }
+
+    tapHandlers();
   }
 
   void _onSecondaryTapUp(TapUpDetails details) {
@@ -880,6 +940,7 @@ Updating drag selection:
   }) {
     final gestureSettings = MediaQuery.maybeOf(context)?.gestureSettings;
     return GestureDetector(
+      behavior: HitTestBehavior.translucent,
       onSecondaryTapDown: _onSecondaryTapDown,
       onSecondaryTapUp: _onSecondaryTapUp,
       onSecondaryTapCancel: _onSecondaryTapCancel,
