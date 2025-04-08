@@ -93,7 +93,7 @@ MutableDocument deserializeMarkdownToDocument(
 /// markdown content.
 class _MarkdownToDocument implements md.NodeVisitor {
   _MarkdownToDocument([
-    this._elementToNodeConverters = const [],
+    this.elementToNodeConverters = const [],
     this.customInlineSyntax = const [],
     this.inlineMarkdownToDocumentBuilder,
     this._encodeHtml = false,
@@ -102,11 +102,12 @@ class _MarkdownToDocument implements md.NodeVisitor {
 
   final MarkdownSyntax syntax;
 
-  final List<ElementToNodeConverter> _elementToNodeConverters;
+  final List<ElementToNodeConverter> elementToNodeConverters;
   final List<md.InlineSyntax> customInlineSyntax;
   final InlineMarkdownToDocument Function()? inlineMarkdownToDocumentBuilder;
 
   final _content = <DocumentNode>[];
+
   List<DocumentNode> get content => _content;
 
   final _listItemTypeStack = <ListItemType>[];
@@ -133,7 +134,7 @@ class _MarkdownToDocument implements md.NodeVisitor {
 
   @override
   bool visitElementBefore(md.Element element) {
-    for (final converter in _elementToNodeConverters) {
+    for (final converter in elementToNodeConverters) {
       final node = converter.handleElement(element);
       if (node != null) {
         _content.add(node);
@@ -439,14 +440,14 @@ class _MarkdownToDocument implements md.NodeVisitor {
 
 /// Parses inline markdown content.
 ///
-/// Apply [_InlineMarkdownToDocument] to a text [Element] to
+/// Apply [InlineMarkdownToDocument] to a text [Element] to
 /// obtain an [AttributedText] that represents the inline
 /// styles within the given text.
 ///
-/// Apply [_InlineMarkdownToDocument] to an [Element] whose
+/// Apply [InlineMarkdownToDocument] to an [Element] whose
 /// content is an image tag to obtain image data.
 ///
-/// [_InlineMarkdownToDocument] does not support parsing text
+/// [InlineMarkdownToDocument] does not support parsing text
 /// that contains image tags. If any non-image text is found,
 /// the content is treated as styled text.
 class InlineMarkdownToDocument implements md.NodeVisitor {

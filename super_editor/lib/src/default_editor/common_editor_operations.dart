@@ -58,6 +58,7 @@ class CommonEditorOperations {
   // Marked as protected for extension methods and subclasses
   @protected
   final DocumentComposer composer;
+
   // Marked as protected for extension methods and subclasses
   @protected
   final DocumentLayoutResolver documentLayoutResolver;
