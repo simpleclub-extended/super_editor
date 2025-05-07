@@ -47,7 +47,7 @@ class ImageNode extends BlockNode {
       throw Exception('ImageNode can only copy content from a UpstreamDownstreamNodeSelection.');
     }
 
-    return !selection.isCollapsed ? imageUrl : null;
+    return !selection.isCollapsed ? '![$altText]($imageUrl)' : null;
   }
 
   @override
