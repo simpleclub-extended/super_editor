@@ -1,9 +1,10 @@
-import 'dart:ui';
 import 'dart:async';
+import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:follow_the_leader/follow_the_leader.dart';
 import 'package:super_editor/src/core/document.dart';
 import 'package:super_editor/src/core/document_composer.dart';
@@ -1509,7 +1510,13 @@ class SuperEditorIosToolbarOverlayManagerState extends State<SuperEditorIosToolb
     super.didChangeDependencies();
 
     _controlsController = SuperEditorIosControlsScope.rootOf(context);
-    _overlayPortalController.show();
+    if (SchedulerBinding.instance.schedulerPhase == SchedulerPhase.persistentCallbacks) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _overlayPortalController.show();
+      });
+    } else {
+      _overlayPortalController.show();
+    }
   }
 
   @visibleForTesting
@@ -1571,7 +1578,13 @@ class SuperEditorIosMagnifierOverlayManagerState extends State<SuperEditorIosMag
   void didChangeDependencies() {
     super.didChangeDependencies();
     _controlsController = SuperEditorIosControlsScope.rootOf(context);
-    _overlayPortalController.show();
+    if (SchedulerBinding.instance.schedulerPhase == SchedulerPhase.persistentCallbacks) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _overlayPortalController.show();
+      });
+    } else {
+      _overlayPortalController.show();
+    }
   }
 
   @override
