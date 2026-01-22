@@ -62,13 +62,13 @@ extension ComputeTextSpan on AttributedText {
           );
         }
       } else {
-        // This section is text. The end of this text is either the
-        // end of the AttributedText, or the index of the next placeholder.
+        // This section is text. The end of this text is the minimum of:
+        // 1. The end of the current attribution span (span.end + 1)
+        // 2. The index of the next placeholder after `start`
         contentEnd = span.end + 1;
         for (final entry in placeholders.entries) {
-          if (entry.key > start) {
+          if (entry.key > start && entry.key < contentEnd) {
             contentEnd = entry.key;
-            break;
           }
         }
 
