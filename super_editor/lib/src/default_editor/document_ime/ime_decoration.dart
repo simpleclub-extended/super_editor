@@ -60,6 +60,9 @@ abstract class TextInputConnectionDecorator implements TextInputConnection {
 
   @override
   void close() => client?.close();
+
+  @override
+  void updateStyle(TextInputStyle style) => client?.updateStyle(style);
 }
 
 /// A [DeltaTextInputClient] that forwards all calls to the given [_client].
