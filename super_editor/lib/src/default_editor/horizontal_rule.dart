@@ -1,5 +1,6 @@
 import 'package:attributed_text/attributed_text.dart';
 import 'package:flutter/material.dart';
+import 'package:super_editor/src/core/styles.dart';
 import 'package:super_editor/src/default_editor/layout_single_column/selection_aware_viewmodel.dart';
 import 'package:super_editor/src/default_editor/selection_upstream_downstream.dart';
 
@@ -15,7 +16,7 @@ class HorizontalRuleNode extends BlockNode {
     required this.id,
     super.metadata,
   }) {
-    initAddToMetadata({"blockType": const NamedAttribution("horizontalRule")});
+    initAddToMetadata({"blockType": horizontalRuleBlockType});
   }
 
   @override
@@ -64,11 +65,14 @@ class HorizontalRuleNode extends BlockNode {
   int get hashCode => id.hashCode;
 }
 
+const horizontalRuleBlockType = NamedAttribution("horizontalRule");
+
 class HorizontalRuleComponentBuilder implements ComponentBuilder {
   const HorizontalRuleComponentBuilder();
 
   @override
-  SingleColumnLayoutComponentViewModel? createViewModel(Document document, DocumentNode node) {
+  SingleColumnLayoutComponentViewModel? createViewModel(
+      PresenterContext context, Document document, DocumentNode node) {
     if (node is! HorizontalRuleNode) {
       return null;
     }
@@ -89,6 +93,7 @@ class HorizontalRuleComponentBuilder implements ComponentBuilder {
 
     return HorizontalRuleComponent(
       componentKey: componentContext.componentKey,
+      color: componentViewModel.color,
       selection: componentViewModel.selection?.nodeSelection as UpstreamDownstreamNodeSelection?,
       selectionColor: componentViewModel.selectionColor,
       showCaret: componentViewModel.caret != null,
@@ -111,8 +116,17 @@ class HorizontalRuleComponentViewModel extends SingleColumnLayoutComponentViewMo
     super.selectionColor = selectionColor;
   }
 
+  Color color;
+
   UpstreamDownstreamNodePosition? caret;
   Color caretColor;
+
+  @override
+  void applyStyles(Map<String, dynamic> styles) {
+    super.applyStyles(styles);
+
+    color = styles[Styles.backgroundColor] ?? Colors.grey;
+  }
 
   @override
   HorizontalRuleComponentViewModel copy() {
@@ -154,7 +168,7 @@ class HorizontalRuleComponent extends StatelessWidget {
   const HorizontalRuleComponent({
     Key? key,
     required this.componentKey,
-    this.color = Colors.grey,
+    required this.color,
     this.thickness = 1,
     this.selectionColor = Colors.blue,
     this.selection,

@@ -168,7 +168,7 @@ class ListItemComponentBuilder implements ComponentBuilder {
 
   @override
   SingleColumnLayoutComponentViewModel? createViewModel(
-      Document document, DocumentNode node) {
+      PresenterContext context, Document document, DocumentNode node) {
     if (node is! ListItemNode) {
       return null;
     }

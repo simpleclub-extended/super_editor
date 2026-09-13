@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:super_editor/src/core/document.dart';
 import 'package:super_editor/src/core/document_composer.dart';
+import 'package:super_editor/src/composite/document_composite_nodes.dart';
 import 'package:super_editor/src/core/document_layout.dart';
 import 'package:super_editor/src/core/document_selection.dart';
 import 'package:super_editor/src/core/edit_context.dart';
@@ -12,6 +13,7 @@ import 'package:super_editor/src/core/editor.dart';
 import 'package:super_editor/src/default_editor/attributions.dart';
 import 'package:super_editor/src/default_editor/blocks/indentation.dart';
 import 'package:super_editor/src/default_editor/box_component.dart';
+import 'package:super_editor/src/composite/composite_nodes.dart';
 import 'package:super_editor/src/default_editor/multi_node_editing.dart';
 import 'package:super_editor/src/default_editor/text.dart';
 import 'package:super_editor/src/infrastructure/_logging.dart';
@@ -105,7 +107,8 @@ class ParagraphComponentBuilder implements ComponentBuilder {
   const ParagraphComponentBuilder();
 
   @override
-  SingleColumnLayoutComponentViewModel? createViewModel(Document document, DocumentNode node) {
+  SingleColumnLayoutComponentViewModel? createViewModel(
+      PresenterContext context, Document document, DocumentNode node) {
     if (node is! ParagraphNode) {
       return null;
     }
@@ -533,21 +536,26 @@ class CombineParagraphsCommand extends EditCommand {
   @override
   HistoryBehavior get historyBehavior => HistoryBehavior.undoable;
 
-  @override
-  void execute(EditContext context, CommandExecutor executor) {
-    editorDocLog.info('Executing CombineParagraphsCommand');
-    editorDocLog.info(' - merging "$firstNodeId" <- "$secondNodeId"');
-    final document = context.document;
+  /// Checks the command can be performed, before it actually executed
+  static bool canPerform(Document document, {required String firstNodeId, required String secondNodeId}) {
+    return _resolveNodesForCommand(document, firstNodeId: firstNodeId, secondNodeId: secondNodeId) != null;
+  }
+
+  static (TextNode, TextNode)? _resolveNodesForCommand(
+    Document document, {
+    required String firstNodeId,
+    required String secondNodeId,
+  }) {
     final secondNode = document.getNodeById(secondNodeId);
     if (secondNode is! TextNode) {
       editorDocLog.info('WARNING: Cannot merge node of type: $secondNode into node above.');
-      return;
+      return null;
     }
 
     DocumentNode? nodeAbove = document.getNodeBefore(secondNode);
     if (nodeAbove == null) {
       editorDocLog.info('At top of document. Cannot merge with node above.');
-      return;
+      return null;
     }
 
     // Search for a node above the second node that has the id equal to `firstNodeId`.
@@ -568,12 +576,36 @@ class CombineParagraphsCommand extends EditCommand {
 
     if (nodeAbove == null) {
       editorDocLog.info('The specified `firstNodeId` is not the node before `secondNodeId`.');
-      return;
+      return null;
     }
     if (nodeAbove is! TextNode) {
       editorDocLog.info('Cannot merge ParagraphNode into node of type: $nodeAbove');
+      return null;
+    }
+
+    // Check if nodeAbove and nodeBelow belongs to different CompositeNode and one of them is isolated
+    // then cancel the operation
+    if (document.shouldIsolateNodes([nodeAbove.id, secondNodeId])) {
+      return null;
+    }
+
+    return (nodeAbove, secondNode);
+  }
+
+  @override
+  void execute(EditContext context, CommandExecutor executor) {
+    editorDocLog.info('Executing CombineParagraphsCommand');
+    editorDocLog.info(' - merging "$firstNodeId" <- "$secondNodeId"');
+    final resolved = _resolveNodesForCommand(
+      context.document,
+      firstNodeId: firstNodeId,
+      secondNodeId: secondNodeId,
+    );
+    if (resolved == null) {
       return;
     }
+    final document = context.document;
+    final (nodeAbove, secondNode) = resolved;
 
     // Combine the text and delete the currently selected node.
     final isTopNodeEmpty = nodeAbove.text.isEmpty;
@@ -602,19 +634,24 @@ class CombineParagraphsCommand extends EditCommand {
       );
     }
 
+    final secondNodeParentId = document.getNodePathById(secondNode.id)?.parent?.nodeId;
     bool didRemove = document.deleteNode(secondNode.id);
     if (!didRemove) {
       editorDocLog.info('ERROR: Failed to delete the currently selected node from the document.');
     }
 
-    executor.logChanges([
+    final changes = <EditEvent>[
       DocumentEdit(
-        NodeRemovedEvent(secondNode.id, secondNode),
+        NodeRemovedEvent(secondNode.id, secondNode, parentNodeId: secondNodeParentId),
       ),
       DocumentEdit(
         NodeChangeEvent(nodeAbove.id),
       ),
-    ]);
+    ];
+
+    changes.addAll(document.postProcessCompositeNodesAfterDeletion(changes: changes));
+
+    executor.logChanges(changes);
   }
 }
 
@@ -889,6 +926,9 @@ class DeleteUpstreamAtBeginningOfParagraphCommand extends EditCommand {
     if (nodeAbove is! TextNode) {
       return false;
     }
+    if (!CombineParagraphsCommand.canPerform(document, firstNodeId: nodeAbove.id, secondNodeId: node.id)) {
+      return false;
+    }
 
     final aboveParagraphLength = nodeAbove.text.length;
 
@@ -1035,6 +1075,7 @@ class DeleteParagraphCommand extends EditCommand {
       return;
     }
 
+    final parentNodeId = document.getNodePathById(node.id)?.parent?.nodeId;
     bool didRemove = document.deleteNode(node.id);
     if (!didRemove) {
       editorDocLog.shout('ERROR: Failed to delete node "$node" from the document.');
@@ -1042,7 +1083,7 @@ class DeleteParagraphCommand extends EditCommand {
 
     executor.logChanges([
       DocumentEdit(
-        NodeRemovedEvent(node.id, node),
+        NodeRemovedEvent(node.id, node, parentNodeId: parentNodeId),
       )
     ]);
   }

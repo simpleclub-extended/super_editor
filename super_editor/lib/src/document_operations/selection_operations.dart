@@ -6,6 +6,7 @@ import 'package:super_editor/src/core/editor.dart';
 import 'package:super_editor/src/default_editor/selection_upstream_downstream.dart';
 import 'package:super_editor/src/default_editor/text_tools.dart';
 import 'package:super_editor/src/infrastructure/_logging.dart';
+import 'package:super_editor/src/infrastructure/documents/document_selection.dart';
 
 import '../core/document.dart';
 import '../core/document_selection.dart';
@@ -35,7 +36,11 @@ bool moveSelectionToNearestSelectableNode({
   NodePosition? newPosition;
 
   // Try to find a new selection downstream.
-  final downstreamNode = _getDownstreamSelectableNodeAfter(document, documentLayoutResolver, startingNode);
+  final downstreamNode = editor.document.getNextSelectableNode(
+    startingNode: startingNode,
+    documentLayoutResolver: documentLayoutResolver,
+    direction: DocumentNodeLookupDirection.right,
+  );
   if (downstreamNode != null) {
     newNodeId = downstreamNode.id;
     final nextComponent = documentLayoutResolver().getComponentByNodeId(newNodeId);
@@ -44,7 +49,11 @@ bool moveSelectionToNearestSelectableNode({
 
   // Try to find a new selection upstream.
   if (newPosition == null) {
-    final upstreamNode = _getUpstreamSelectableNodeBefore(document, documentLayoutResolver, startingNode);
+    final upstreamNode = editor.document.getNextSelectableNode(
+      startingNode: startingNode,
+      documentLayoutResolver: documentLayoutResolver,
+      direction: DocumentNodeLookupDirection.left,
+    );
     if (upstreamNode != null) {
       newNodeId = upstreamNode.id;
       final previousComponent = documentLayoutResolver().getComponentByNodeId(newNodeId);
@@ -109,110 +118,6 @@ DocumentNode? _getDownstreamSelectableNodeAfter(
   } while (!foundSelectableNode && selectableNode != null);
 
   return selectableNode;
-}
-
-/// Returns the first [DocumentNode] before [startingNode] whose
-/// [DocumentComponent] is visually selectable.
-DocumentNode? _getUpstreamSelectableNodeBefore(
-  Document document,
-  DocumentLayoutResolver documentLayoutResolver,
-  DocumentNode startingNode,
-) {
-  bool foundSelectableNode = false;
-  DocumentNode prevNode = startingNode;
-  DocumentNode? selectableNode;
-  do {
-    selectableNode = document.getNodeBefore(prevNode);
-
-    if (selectableNode != null) {
-      final nextComponent = documentLayoutResolver().getComponentByNodeId(selectableNode.id);
-      if (nextComponent != null) {
-        foundSelectableNode = nextComponent.isVisualSelectionSupported();
-      }
-      prevNode = selectableNode;
-    }
-  } while (!foundSelectableNode && selectableNode != null);
-
-  return selectableNode;
-}
-
-/// Calculates an appropriate [DocumentSelection] from an (x,y)
-/// [baseOffsetInDocument], to an (x,y) [extentOffsetInDocument], setting
-/// the new document selection in the given [selection].
-void selectRegion({
-  required DocumentLayout documentLayout,
-  required Offset baseOffsetInDocument,
-  required Offset extentOffsetInDocument,
-  required SelectionType selectionType,
-  bool expandSelection = false,
-  required ValueNotifier<DocumentSelection?> selection,
-}) {
-  docGesturesLog.info("Selecting region with selection mode: $selectionType");
-  DocumentSelection? regionSelection = documentLayout.getDocumentSelectionInRegion(
-    baseOffsetInDocument,
-    extentOffsetInDocument,
-  );
-  DocumentPosition? basePosition = regionSelection?.base;
-  DocumentPosition? extentPosition = regionSelection?.extent;
-  docGesturesLog.fine(" - base: $basePosition, extent: $extentPosition");
-
-  if (basePosition == null || extentPosition == null) {
-    selection.value = null;
-    return;
-  }
-
-  if (selectionType == SelectionType.paragraph) {
-    final baseParagraphSelection = getParagraphSelection(
-      docPosition: basePosition,
-      docLayout: documentLayout,
-    );
-    if (baseParagraphSelection == null) {
-      selection.value = null;
-      return;
-    }
-    basePosition = baseOffsetInDocument.dy < extentOffsetInDocument.dy
-        ? baseParagraphSelection.base
-        : baseParagraphSelection.extent;
-
-    final extentParagraphSelection = getParagraphSelection(
-      docPosition: extentPosition,
-      docLayout: documentLayout,
-    );
-    if (extentParagraphSelection == null) {
-      selection.value = null;
-      return;
-    }
-    extentPosition = baseOffsetInDocument.dy < extentOffsetInDocument.dy
-        ? extentParagraphSelection.extent
-        : extentParagraphSelection.base;
-  } else if (selectionType == SelectionType.word) {
-    final baseWordSelection = getWordSelection(
-      docPosition: basePosition,
-      docLayout: documentLayout,
-    );
-    if (baseWordSelection == null) {
-      selection.value = null;
-      return;
-    }
-    basePosition = baseWordSelection.base;
-
-    final extentWordSelection = getWordSelection(
-      docPosition: extentPosition,
-      docLayout: documentLayout,
-    );
-    if (extentWordSelection == null) {
-      selection.value = null;
-      return;
-    }
-    extentPosition = extentWordSelection.extent;
-  }
-
-  selection.value = (DocumentSelection(
-    // If desired, expand the selection instead of replacing it.
-    base: expandSelection ? selection.value?.base ?? basePosition : basePosition,
-    extent: extentPosition,
-  ));
-  docGesturesLog.fine("Selected region: ${selection.value}");
 }
 
 enum SelectionType {
@@ -340,7 +245,11 @@ bool moveCaretUpstream({
 
   if (newExtentNodePosition == null) {
     // Move to next node
-    final nextNode = _getUpstreamSelectableNodeBefore(document, () => documentLayout, node);
+    final nextNode = editor.document.getNextSelectableNode(
+      startingNode: node,
+      documentLayoutResolver: () => documentLayout,
+      direction: DocumentNodeLookupDirection.left,
+    );
 
     if (nextNode == null) {
       // We're at the beginning of the document and can't go anywhere.
@@ -413,7 +322,11 @@ bool moveCaretDownstream({
 
   if (newExtentNodePosition == null) {
     // Move to next node
-    final nextNode = _getDownstreamSelectableNodeAfter(document, () => documentLayout, node);
+    final nextNode = editor.document.getNextSelectableNode(
+      startingNode: node,
+      documentLayoutResolver: () => documentLayout,
+      direction: DocumentNodeLookupDirection.right,
+    );
 
     if (nextNode == null) {
       // We're at the beginning/end of the document and can't go
@@ -489,7 +402,17 @@ bool moveCaretUp({
 
   if (newExtentNodePosition == null) {
     // Move to next node
-    final nextNode = _getUpstreamSelectableNodeBefore(document, () => documentLayout, node);
+    final offsetInExtent = extentComponent.getOffsetForPosition(currentExtent.nodePosition);
+    final offsetToMatch = documentLayout.getDocumentOffsetFromAncestorOffset(
+      offsetInExtent,
+      extentComponent.context.findRenderObject(),
+    );
+    final nextNode = editor.document.getNextSelectableNode(
+      startingNode: node,
+      documentLayoutResolver: () => documentLayout,
+      direction: DocumentNodeLookupDirection.up,
+      nearX: offsetToMatch.dx,
+    );
     if (nextNode != null) {
       newExtentNodeId = nextNode.id;
       final nextComponent = documentLayout.getComponentByNodeId(nextNode.id);
@@ -497,8 +420,11 @@ bool moveCaretUp({
         editorOpsLog.shout("Tried to obtain non-existent component by node id: $newExtentNodeId");
         return false;
       }
-      final offsetToMatch = extentComponent.getOffsetForPosition(currentExtent.nodePosition);
-      newExtentNodePosition = nextComponent.getEndPositionNearX(offsetToMatch.dx);
+      final offsetInNextComponent = documentLayout.getAncestorOffsetFromDocumentOffset(
+        offsetToMatch,
+        nextComponent.context.findRenderObject(),
+      );
+      newExtentNodePosition = nextComponent.getEndPositionNearX(offsetInNextComponent.dx);
     } else {
       // We're at the top of the document. Move the cursor to the
       // beginning of the current node.
@@ -566,7 +492,17 @@ bool moveCaretDown({
 
   if (newExtentNodePosition == null) {
     // Move to next node
-    final nextNode = _getDownstreamSelectableNodeAfter(document, () => documentLayout, node);
+    final offsetInExtent = extentComponent.getOffsetForPosition(currentExtent.nodePosition);
+    final offsetToMatch = documentLayout.getDocumentOffsetFromAncestorOffset(
+      offsetInExtent,
+      extentComponent.context.findRenderObject(),
+    );
+    final nextNode = editor.document.getNextSelectableNode(
+      startingNode: node,
+      documentLayoutResolver: () => documentLayout,
+      direction: DocumentNodeLookupDirection.down,
+      nearX: offsetToMatch.dx,
+    );
     if (nextNode != null) {
       newExtentNodeId = nextNode.id;
       final nextComponent = documentLayout.getComponentByNodeId(nextNode.id);
@@ -574,8 +510,11 @@ bool moveCaretDown({
         editorOpsLog.shout("Tried to obtain non-existent component by node id: $newExtentNodeId");
         return false;
       }
-      final offsetToMatch = extentComponent.getOffsetForPosition(currentExtent.nodePosition);
-      newExtentNodePosition = nextComponent.getBeginningPositionNearX(offsetToMatch.dx);
+      final offsetInNextComponent = documentLayout.getAncestorOffsetFromDocumentOffset(
+        offsetToMatch,
+        nextComponent.context.findRenderObject(),
+      );
+      newExtentNodePosition = nextComponent.getBeginningPositionNearX(offsetInNextComponent.dx);
     } else {
       // We're at the bottom of the document. Move the cursor to the
       // end of the current node.
@@ -626,69 +565,10 @@ void copy({
   required Document document,
   required DocumentSelection selection,
 }) {
-  final textToCopy = _textInSelection(
-    document: document,
-    documentSelection: selection,
-  );
+  final textToCopy = extractTextFromSelection(document: document, documentSelection: selection);
   // TODO: figure out a general approach for asynchronous behaviors that
   //       need to be carried out in response to user input.
   _saveToClipboard(textToCopy);
-}
-
-String _textInSelection({
-  required Document document,
-  required DocumentSelection documentSelection,
-}) {
-  final selectedNodes = document.getNodesInside(
-    documentSelection.base,
-    documentSelection.extent,
-  );
-
-  final buffer = StringBuffer();
-  for (int i = 0; i < selectedNodes.length; ++i) {
-    final selectedNode = selectedNodes[i];
-    dynamic nodeSelection;
-
-    if (i == 0) {
-      // This is the first node and it may be partially selected.
-      final baseSelectionPosition = selectedNode.id == documentSelection.base.nodeId
-          ? documentSelection.base.nodePosition
-          : documentSelection.extent.nodePosition;
-
-      final extentSelectionPosition =
-          selectedNodes.length > 1 ? selectedNode.endPosition : documentSelection.extent.nodePosition;
-
-      nodeSelection = selectedNode.computeSelection(
-        base: baseSelectionPosition,
-        extent: extentSelectionPosition,
-      );
-    } else if (i == selectedNodes.length - 1) {
-      // This is the last node and it may be partially selected.
-      final nodePosition = selectedNode.id == documentSelection.base.nodeId
-          ? documentSelection.base.nodePosition
-          : documentSelection.extent.nodePosition;
-
-      nodeSelection = selectedNode.computeSelection(
-        base: selectedNode.beginningPosition,
-        extent: nodePosition,
-      );
-    } else {
-      // This node is fully selected. Copy the whole thing.
-      nodeSelection = selectedNode.computeSelection(
-        base: selectedNode.beginningPosition,
-        extent: selectedNode.endPosition,
-      );
-    }
-
-    final nodeContent = selectedNode.copyContent(nodeSelection);
-    if (nodeContent != null) {
-      buffer.write(nodeContent);
-      if (i < selectedNodes.length - 1) {
-        buffer.writeln();
-      }
-    }
-  }
-  return buffer.toString();
 }
 
 Future<void> _saveToClipboard(String text) {
