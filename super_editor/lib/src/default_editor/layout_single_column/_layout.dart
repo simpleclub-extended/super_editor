@@ -668,7 +668,12 @@ class _SingleColumnDocumentLayoutState extends State<SingleColumnDocumentLayout>
         editorLayoutLog.info('WARNING: found component but it\'s not a CompositeComponent: $childId, state: $state');
         return null;
       }
-      state = state.getChildComponentById(childId);
+      final childComponent = state.getChildComponentById(childId);
+      if (childComponent == null) {
+        editorLayoutLog.info('WARNING: composite component has no child for node ID: $childId');
+        return null;
+      }
+      state = childComponent;
     }
     if (state is! DocumentComponent) {
       editorLayoutLog
