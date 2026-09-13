@@ -230,6 +230,7 @@ class _TableCompositeDemoScreenState extends State<_TableCompositeDemoScreen> {
           ...defaultComponentBuilders,
         ],
         keyboardActions: [
+          metaPlusZToUndo,
           tabToNextCell,
           shiftPlusArrowToSelectCellsInsideOrGoOutside,
           shiftPlusArrowThroughTableToSelectByRow,
@@ -927,6 +928,26 @@ class _DemoTableComponentState extends State<_DemoTableComponent> with Composite
     }
   }
   return null;
+}
+
+ExecutionInstruction metaPlusZToUndo({
+  required SuperEditorContext editContext,
+  required KeyEvent keyEvent,
+}) {
+  if (keyEvent is! KeyDownEvent && keyEvent is! KeyRepeatEvent) {
+    return ExecutionInstruction.continueExecution;
+  }
+
+  if (keyEvent.logicalKey != LogicalKeyboardKey.keyZ || !HardwareKeyboard.instance.isMetaPressed) {
+    return ExecutionInstruction.continueExecution;
+  }
+
+  if (HardwareKeyboard.instance.isShiftPressed) {
+    editContext.editor.redo();
+  } else {
+    editContext.editor.undo();
+  }
+  return ExecutionInstruction.haltExecution;
 }
 
 ExecutionInstruction tabToNextCell({
