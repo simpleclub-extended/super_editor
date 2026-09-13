@@ -701,7 +701,12 @@ class _SingleColumnDocumentLayoutState extends State<SingleColumnDocumentLayout>
         }
         return null;
       }
-      component = (component as CompositeComponent).getChildComponentById(childId);
+      final childComponent = (component as CompositeComponent).getChildComponentById(childId);
+      if (childComponent == null) {
+        editorLayoutLog.info('WARNING: composite component has no child for node ID: $childId');
+        return null;
+      }
+      component = childComponent;
     }
     return component;
   }
@@ -1150,8 +1155,10 @@ class _ChildrenComponentKeyProvider {
   }
 
   GlobalKey<DocumentComponent> _registerMissingKey(String rootNodeId, String nodeId) {
+    editorLayoutLog.info('WARNING: no component key was registered for node ID: $nodeId, creating one');
     final key = GlobalKey<DocumentComponent>();
     _existing.putIfAbsent(rootNodeId, () => <String, GlobalKey<DocumentComponent>>{})[nodeId] = key;
+    _new.putIfAbsent(rootNodeId, () => <String, GlobalKey<DocumentComponent>>{})[nodeId] = key;
     return key;
   }
 

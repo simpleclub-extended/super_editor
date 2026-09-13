@@ -5,7 +5,11 @@ class FeatherCodeComponentBuilder implements ComponentBuilder {
   const FeatherCodeComponentBuilder();
 
   @override
-  SingleColumnLayoutComponentViewModel? createViewModel(Document document, DocumentNode node) {
+  SingleColumnLayoutComponentViewModel? createViewModel(
+    PresenterContext presenterContext,
+    Document document,
+    DocumentNode node,
+  ) {
     if (node is! ParagraphNode) {
       return null;
     }

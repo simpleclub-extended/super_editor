@@ -34,5 +34,12 @@ void main() {
       expect(document.getNodeIndexById('cell2'), document.getNodeIndexInParentById('cell2'));
       expect(document.getNodeIndexById('cell2'), 1);
     });
+
+    test('throw for an unknown id where they used to answer minus one', () {
+      final document = paragraphThenCellsThenParagraphDoc(cellCount: 2);
+
+      expect(() => document.getNodeIndexById('nope'), throwsException);
+      expect(() => document.getNodeIndexInParentById('nope'), throwsException);
+    });
   });
 }

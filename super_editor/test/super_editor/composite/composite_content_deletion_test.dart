@@ -7,12 +7,20 @@ import 'composite_test_tools.dart';
 
 TestTableNode tableOf(Document document) => document.getNodeById('table') as TestTableNode;
 
+void expectCaretAt(MutableDocumentComposer composer, Document document, String nodeId, int offset) {
+  expect(document.getNodeById(nodeId), isNotNull);
+  expect(composer.selection!.isCollapsed, isTrue);
+  expect(composer.selection!.extent.nodeId, nodeId);
+  expect((composer.selection!.extent.nodePosition as TextNodePosition).offset, offset);
+}
+
 CommonEditorOperations _opsFor(MutableDocument document, MutableDocumentComposer composer) {
+  final layout = FakeDocumentLayout();
   return CommonEditorOperations(
     editor: createDefaultDocumentEditor(document: document, composer: composer),
     document: document,
     composer: composer,
-    documentLayoutResolver: () => FakeDocumentLayout(),
+    documentLayoutResolver: () => layout,
   );
 }
 
@@ -40,7 +48,7 @@ void main() {
       expect((document.getNodeById('p1') as TextNode).text.toPlainText(), 'Ce');
       expect((document.getNodeById('p3') as TextNode).text.toPlainText(), 'll 3 text');
 
-      expect(document.getNodeById(composer.selection!.extent.nodeId), isNotNull);
+      expectCaretAt(composer, document, 'p1', 2);
     });
 
     test('empties the selected cells and keeps the composite when partially selected', () {
@@ -62,7 +70,7 @@ void main() {
         ((table.getChildByNodeId('cell3') as TestCellNode).children.first as TextNode).text.toPlainText(),
         'Cell 3 text',
       );
-      expect(document.getNodeById(composer.selection!.extent.nodeId), isNotNull);
+      expectCaretAt(composer, document, 'p1', 0);
     });
 
     test('deletes the composite when fully selected', () {
@@ -131,7 +139,7 @@ void main() {
       final cell2 = table.getChildByNodeId('cell2') as TestCellNode;
       expect(cell2.children.first.id, 'p2');
       expect((cell2.children.first as TextNode).text.toPlainText(), 'Cell 2 text');
-      expect(document.getNodeById(composer.selection!.extent.nodeId), isNotNull);
+      expectCaretAt(composer, document, 'p1', 2);
     });
   });
 }

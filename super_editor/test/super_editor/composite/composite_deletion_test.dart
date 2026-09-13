@@ -36,8 +36,9 @@ void main() {
           }
 
           expect(SuperEditorInspector.findTextInComponent('p1').toPlainText(), 'Cell 1 textCell 2 text');
-          final cell2 = (context.document.getNodeById('table') as TestTableNode).getChildByNodeId('cell2')!;
-          expect((cell2 as TestCellNode).children.length, 1);
+          final cell2 =
+              (context.document.getNodeById('table') as TestTableNode).getChildByNodeId('cell2') as TestCellNode;
+          expect(cell2.children.length, 1);
           expect(cell2.children.first.id, 'p2');
           expect((cell2.children.first as TextNode).text.toPlainText(), '');
           expectCollapsedAt(context.composer.selection, 'p1', 11);
@@ -61,8 +62,9 @@ void main() {
           }
 
           expect(SuperEditorInspector.findTextInComponent('p1').toPlainText(), 'Cell 1 textCell 2 text');
-          final cell2 = (context.document.getNodeById('table') as TestTableNode).getChildByNodeId('cell2')!;
-          expect((cell2 as TestCellNode).children.length, 1);
+          final cell2 =
+              (context.document.getNodeById('table') as TestTableNode).getChildByNodeId('cell2') as TestCellNode;
+          expect(cell2.children.length, 1);
           expect(cell2.children.first.id, 'p2');
           expect((cell2.children.first as TextNode).text.toPlainText(), '');
           expectCollapsedAt(context.composer.selection, 'p1', 11);
@@ -86,8 +88,9 @@ void main() {
           }
 
           expect(SuperEditorInspector.findTextInComponent('1').toPlainText(), 'First paragraphCell 1 text');
-          final cell1 = (context.document.getNodeById('table') as TestTableNode).getChildByNodeId('cell1')!;
-          expect((cell1 as TestCellNode).children.length, 1);
+          final cell1 =
+              (context.document.getNodeById('table') as TestTableNode).getChildByNodeId('cell1') as TestCellNode;
+          expect(cell1.children.length, 1);
           expect(cell1.children.first.id, 'p1');
           expect((cell1.children.first as TextNode).text.toPlainText(), '');
           expect(context.document.nodeCount, 3);

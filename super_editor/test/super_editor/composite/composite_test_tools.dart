@@ -42,7 +42,7 @@ class TestTableNode extends CompositeNode {
     required List<String> emptiedChildIds,
     required bool selectionFlowedThrough,
   }) {
-    if (emptiedChildIds.length == children.length) {
+    if (children.isEmpty || emptiedChildIds.length == children.length) {
       return null;
     }
     return this;
@@ -96,7 +96,8 @@ class TestCellNode extends CompositeNode {
     required bool selectionFlowedThrough,
   }) {
     if (children.isEmpty) {
-      return copyWithChildren([ParagraphNode(id: removedChildIds.last, text: AttributedText())]);
+      final replacedId = (removedChildIds.isNotEmpty ? removedChildIds : emptiedChildIds).last;
+      return copyWithChildren([ParagraphNode(id: replacedId, text: AttributedText())]);
     }
     return this;
   }

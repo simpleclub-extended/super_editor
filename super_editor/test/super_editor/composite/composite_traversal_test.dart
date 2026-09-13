@@ -47,6 +47,7 @@ void main() {
 
       expect(next('3', DocumentNodeLookupDirection.left), 'p3');
       expect(next('p3', DocumentNodeLookupDirection.left), 'p2');
+      expect(next('p2', DocumentNodeLookupDirection.left), 'p1');
       expect(next('p1', DocumentNodeLookupDirection.left), '1');
       expect(next('1', DocumentNodeLookupDirection.left), isNull);
     });
