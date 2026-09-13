@@ -9,7 +9,6 @@ import 'package:super_editor/src/default_editor/layout_single_column/layout_sing
 class CompositeNodeViewModel extends SingleColumnLayoutComponentViewModel {
   CompositeNodeViewModel({
     required super.nodeId,
-    super.createdAt,
     super.padding = EdgeInsets.zero,
     super.maxWidth,
     required Iterable<SingleColumnLayoutComponentViewModel> children,
@@ -27,10 +26,8 @@ class CompositeNodeViewModel extends SingleColumnLayoutComponentViewModel {
   CompositeNodeViewModel internalCopy(covariant CompositeNodeViewModel viewModel) {
     // [nodeId] and [children] are required to set in the constructor
     // SingleColumnLayoutComponentViewModel properties:
-    viewModel.createdAt = createdAt;
     viewModel.maxWidth = maxWidth;
     viewModel.padding = padding;
-    viewModel.opacity = opacity;
 
     return viewModel;
   }

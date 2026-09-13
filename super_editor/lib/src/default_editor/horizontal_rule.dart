@@ -109,6 +109,7 @@ class HorizontalRuleComponentViewModel extends SingleColumnLayoutComponentViewMo
     super.padding = EdgeInsets.zero,
     DocumentNodeSelection? selection,
     Color selectionColor = Colors.transparent,
+    this.color = Colors.grey,
     this.caret,
     required this.caretColor,
   }) {
@@ -136,6 +137,7 @@ class HorizontalRuleComponentViewModel extends SingleColumnLayoutComponentViewMo
       padding: padding,
       selection: selection,
       selectionColor: selectionColor,
+      color: color,
       caret: caret,
       caretColor: caretColor,
     );
@@ -150,6 +152,7 @@ class HorizontalRuleComponentViewModel extends SingleColumnLayoutComponentViewMo
           nodeId == other.nodeId &&
           selection == other.selection &&
           selectionColor == other.selectionColor &&
+          color == other.color &&
           caret == other.caret &&
           caretColor == other.caretColor;
 
@@ -159,6 +162,7 @@ class HorizontalRuleComponentViewModel extends SingleColumnLayoutComponentViewMo
       nodeId.hashCode ^
       selection.hashCode ^
       selectionColor.hashCode ^
+      color.hashCode ^
       caret.hashCode ^
       caretColor.hashCode;
 }

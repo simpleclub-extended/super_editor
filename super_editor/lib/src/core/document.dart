@@ -5,7 +5,6 @@ import 'package:collection/collection.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:super_editor/src/composite/composite_nodes.dart';
-import 'package:super_editor/src/default_editor/text_ai.dart';
 
 /// A read-only document with styled text and multimedia elements.
 ///

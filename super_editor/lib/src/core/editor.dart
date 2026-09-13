@@ -1,11 +1,7 @@
-import 'dart:math';
-import 'dart:ui';
 
 import 'package:attributed_text/attributed_text.dart';
 import 'package:clock/clock.dart';
 import 'package:collection/collection.dart';
-import 'package:flutter/cupertino.dart';
-import 'package:flutter/foundation.dart';
 import 'package:super_editor/src/core/document.dart';
 import 'package:super_editor/src/core/document_composer.dart';
 import 'package:super_editor/src/composite/composite_nodes.dart';
@@ -14,8 +10,6 @@ import 'package:super_editor/src/default_editor/text.dart';
 import 'package:super_editor/src/infrastructure/_logging.dart';
 import 'package:uuid/uuid.dart';
 
-import 'document.dart';
-import 'document_composer.dart';
 
 /// Editor for a document editing experience.
 ///

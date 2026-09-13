@@ -36,7 +36,7 @@ bool moveSelectionToNearestSelectableNode({
   NodePosition? newPosition;
 
   // Try to find a new selection downstream.
-  final downstreamNode = editor.document.getNextSelectableNode(
+  final downstreamNode = document.getNextSelectableNode(
     startingNode: startingNode,
     documentLayoutResolver: documentLayoutResolver,
     direction: DocumentNodeLookupDirection.right,
@@ -49,7 +49,7 @@ bool moveSelectionToNearestSelectableNode({
 
   // Try to find a new selection upstream.
   if (newPosition == null) {
-    final upstreamNode = editor.document.getNextSelectableNode(
+    final upstreamNode = document.getNextSelectableNode(
       startingNode: startingNode,
       documentLayoutResolver: documentLayoutResolver,
       direction: DocumentNodeLookupDirection.left,
@@ -95,29 +95,81 @@ bool moveSelectionToNearestSelectableNode({
   return true;
 }
 
-/// Returns the first [DocumentNode] after [startingNode] whose
-/// [DocumentComponent] is visually selectable.
-DocumentNode? _getDownstreamSelectableNodeAfter(
-  Document document,
-  DocumentLayoutResolver documentLayoutResolver,
-  DocumentNode startingNode,
-) {
-  bool foundSelectableNode = false;
-  DocumentNode prevNode = startingNode;
-  DocumentNode? selectableNode;
-  do {
-    selectableNode = document.getNodeAfter(prevNode);
+void selectRegion({
+  required Document document,
+  required DocumentLayout documentLayout,
+  required Offset baseOffsetInDocument,
+  required Offset extentOffsetInDocument,
+  required SelectionType selectionType,
+  bool expandSelection = false,
+  required ValueNotifier<DocumentSelection?> selection,
+}) {
+  docGesturesLog.info("Selecting region with selection mode: $selectionType");
+  DocumentSelection? regionSelection = documentLayout.getDocumentSelectionInRegion(
+    baseOffsetInDocument,
+    extentOffsetInDocument,
+  );
+  DocumentPosition? basePosition = regionSelection?.base;
+  DocumentPosition? extentPosition = regionSelection?.extent;
+  docGesturesLog.fine(" - base: $basePosition, extent: $extentPosition");
 
-    if (selectableNode != null) {
-      final nextComponent = documentLayoutResolver().getComponentByNodeId(selectableNode.id);
-      if (nextComponent != null) {
-        foundSelectableNode = nextComponent.isVisualSelectionSupported();
-      }
-      prevNode = selectableNode;
+  if (basePosition == null || extentPosition == null) {
+    selection.value = null;
+    return;
+  }
+
+  if (selectionType == SelectionType.paragraph) {
+    final baseParagraphSelection = getParagraphSelection(
+      docPosition: basePosition,
+      docLayout: documentLayout,
+    );
+    if (baseParagraphSelection == null) {
+      selection.value = null;
+      return;
     }
-  } while (!foundSelectableNode && selectableNode != null);
+    basePosition = baseOffsetInDocument.dy < extentOffsetInDocument.dy
+        ? baseParagraphSelection.base
+        : baseParagraphSelection.extent;
 
-  return selectableNode;
+    final extentParagraphSelection = getParagraphSelection(
+      docPosition: extentPosition,
+      docLayout: documentLayout,
+    );
+    if (extentParagraphSelection == null) {
+      selection.value = null;
+      return;
+    }
+    extentPosition = baseOffsetInDocument.dy < extentOffsetInDocument.dy
+        ? extentParagraphSelection.extent
+        : extentParagraphSelection.base;
+  } else if (selectionType == SelectionType.word) {
+    final baseWordSelection = getWordSelection(
+      docPosition: basePosition,
+      docLayout: documentLayout,
+    );
+    if (baseWordSelection == null) {
+      selection.value = null;
+      return;
+    }
+    basePosition = baseWordSelection.base;
+
+    final extentWordSelection = getWordSelection(
+      docPosition: extentPosition,
+      docLayout: documentLayout,
+    );
+    if (extentWordSelection == null) {
+      selection.value = null;
+      return;
+    }
+    extentPosition = extentWordSelection.extent;
+  }
+
+  var newSelection = DocumentSelection(base: basePosition, extent: extentPosition);
+  if (expandSelection && selection.value != null) {
+    newSelection = document.expandSelection(selection.value!, extentPosition);
+  }
+  selection.value = document.refineSelectionWithCompositeNodeAdjustments(newSelection);
+  docGesturesLog.fine("Selected region: ${selection.value}");
 }
 
 enum SelectionType {
@@ -188,7 +240,11 @@ void moveToNearestSelectableComponent(
   NodePosition? newPosition;
 
   // Try to find a new selection downstream.
-  final downstreamNode = _getDownstreamSelectableNodeAfter(document, () => documentLayout, startingNode);
+  final downstreamNode = document.getNextSelectableNode(
+    startingNode: startingNode,
+    documentLayoutResolver: () => documentLayout,
+    direction: DocumentNodeLookupDirection.right,
+  );
   if (downstreamNode != null) {
     newNodeId = downstreamNode.id;
     final nextComponent = documentLayout.getComponentByNodeId(newNodeId);
@@ -197,7 +253,11 @@ void moveToNearestSelectableComponent(
 
   // Try to find a new selection upstream.
   if (newPosition == null) {
-    final upstreamNode = _getUpstreamSelectableNodeBefore(document, () => documentLayout, startingNode);
+    final upstreamNode = document.getNextSelectableNode(
+      startingNode: startingNode,
+      documentLayoutResolver: () => documentLayout,
+      direction: DocumentNodeLookupDirection.left,
+    );
     if (upstreamNode != null) {
       newNodeId = upstreamNode.id;
       final previousComponent = documentLayout.getComponentByNodeId(newNodeId);
@@ -245,7 +305,7 @@ bool moveCaretUpstream({
 
   if (newExtentNodePosition == null) {
     // Move to next node
-    final nextNode = editor.document.getNextSelectableNode(
+    final nextNode = document.getNextSelectableNode(
       startingNode: node,
       documentLayoutResolver: () => documentLayout,
       direction: DocumentNodeLookupDirection.left,
@@ -322,7 +382,7 @@ bool moveCaretDownstream({
 
   if (newExtentNodePosition == null) {
     // Move to next node
-    final nextNode = editor.document.getNextSelectableNode(
+    final nextNode = document.getNextSelectableNode(
       startingNode: node,
       documentLayoutResolver: () => documentLayout,
       direction: DocumentNodeLookupDirection.right,
@@ -407,7 +467,7 @@ bool moveCaretUp({
       offsetInExtent,
       extentComponent.context.findRenderObject(),
     );
-    final nextNode = editor.document.getNextSelectableNode(
+    final nextNode = document.getNextSelectableNode(
       startingNode: node,
       documentLayoutResolver: () => documentLayout,
       direction: DocumentNodeLookupDirection.up,
@@ -497,7 +557,7 @@ bool moveCaretDown({
       offsetInExtent,
       extentComponent.context.findRenderObject(),
     );
-    final nextNode = editor.document.getNextSelectableNode(
+    final nextNode = document.getNextSelectableNode(
       startingNode: node,
       documentLayoutResolver: () => documentLayout,
       direction: DocumentNodeLookupDirection.down,

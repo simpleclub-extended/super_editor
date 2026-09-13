@@ -33,15 +33,15 @@ class UnknownComponentBuilder implements ComponentBuilder {
 ///
 /// This is used so the editor doesn't crash when it encounters a node that it
 /// doesn't know how to render.
-class _UnkownViewModel extends SingleColumnLayoutComponentViewModel {
-  _UnkownViewModel({
+class _UnknownViewModel extends SingleColumnLayoutComponentViewModel {
+  _UnknownViewModel({
     required super.nodeId,
     required super.padding,
   });
 
   @override
   SingleColumnLayoutComponentViewModel copy() {
-    return _UnkownViewModel(
+    return _UnknownViewModel(
       nodeId: nodeId,
       padding: padding,
     );
