@@ -1141,7 +1141,13 @@ class _ChildrenComponentKeyProvider {
   }
 
   GlobalKey<DocumentComponent> getKey(String rootNodeId, String nodeId) {
-    return _existing[rootNodeId]?[nodeId] ?? _new[rootNodeId]![nodeId]!;
+    return _existing[rootNodeId]?[nodeId] ?? _new[rootNodeId]?[nodeId] ?? _registerMissingKey(rootNodeId, nodeId);
+  }
+
+  GlobalKey<DocumentComponent> _registerMissingKey(String rootNodeId, String nodeId) {
+    final key = GlobalKey<DocumentComponent>();
+    _existing.putIfAbsent(rootNodeId, () => <String, GlobalKey<DocumentComponent>>{})[nodeId] = key;
+    return key;
   }
 
   void registerComponentKeysForChildren(String rootNodeId, SingleColumnLayoutComponentViewModel viewModel) {
