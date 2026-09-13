@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
@@ -9,19 +10,19 @@ import 'package:super_editor/super_editor.dart';
 void main() {
   runApp(
     MaterialApp(
-      home: _ComponentsInComponentsDemoScreen(),
+      home: _TableCompositeDemoScreen(),
     ),
   );
 }
 
-class _ComponentsInComponentsDemoScreen extends StatefulWidget {
-  const _ComponentsInComponentsDemoScreen();
+class _TableCompositeDemoScreen extends StatefulWidget {
+  const _TableCompositeDemoScreen();
 
   @override
-  State<_ComponentsInComponentsDemoScreen> createState() => _ComponentsInComponentsDemoScreenState();
+  State<_TableCompositeDemoScreen> createState() => _TableCompositeDemoScreenState();
 }
 
-class _ComponentsInComponentsDemoScreenState extends State<_ComponentsInComponentsDemoScreen> {
+class _TableCompositeDemoScreenState extends State<_TableCompositeDemoScreen> {
   late final Editor _editor;
 
   @override
@@ -143,12 +144,51 @@ class _ComponentsInComponentsDemoScreenState extends State<_ComponentsInComponen
       ),
       composer: MutableDocumentComposer(),
     );
+
+    _editor.document.addListener(_onDocumentChanged);
+    _editor.composer.selectionNotifier.addListener(_dumpDocument);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _dumpDocument());
   }
 
   @override
   void dispose() {
+    _editor.document.removeListener(_onDocumentChanged);
+    _editor.composer.selectionNotifier.removeListener(_dumpDocument);
     _editor.dispose();
     super.dispose();
+  }
+
+  void _onDocumentChanged(DocumentChangeLog changeLog) => _dumpDocument();
+
+  void _dumpDocument() {
+    final buffer = StringBuffer()..writeln('=== document ===');
+    for (final node in _editor.document) {
+      _writeNode(buffer, node, 0);
+    }
+    final selection = _editor.composer.selection;
+    if (selection == null) {
+      buffer.writeln('selection: none');
+    } else {
+      buffer.writeln(
+        'selection: base=${selection.base.nodeId}@${selection.base.nodePosition} '
+        'extent=${selection.extent.nodeId}@${selection.extent.nodePosition}',
+      );
+    }
+    debugPrint(buffer.toString());
+  }
+
+  void _writeNode(StringBuffer buffer, DocumentNode node, int depth) {
+    buffer.write('  ' * depth);
+    buffer.write('${node.runtimeType}#${node.id}');
+    if (node is TextNode) {
+      buffer.write(' ${jsonEncode(node.text.toPlainText())}');
+    }
+    buffer.writeln();
+    if (node is CompositeNode) {
+      for (final child in node.children) {
+        _writeNode(buffer, child, depth + 1);
+      }
+    }
   }
 
   @override
