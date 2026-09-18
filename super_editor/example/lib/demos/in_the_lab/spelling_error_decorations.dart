@@ -181,13 +181,8 @@ class SpellingErrorParagraphComponentBuilder implements ComponentBuilder {
   final UnderlineStyle underlineStyle;
 
   @override
-  SingleColumnLayoutComponentViewModel? createViewModel(
-    PresenterContext context,
-    Document document,
-    DocumentNode node,
-  ) {
-    final viewModel =
-        ParagraphComponentBuilder().createViewModel(context, document, node) as ParagraphComponentViewModel?;
+  SingleColumnLayoutComponentViewModel? createViewModel(Document document, DocumentNode node) {
+    final viewModel = ParagraphComponentBuilder().createViewModel(document, node) as ParagraphComponentViewModel?;
     if (viewModel == null) {
       return null;
     }

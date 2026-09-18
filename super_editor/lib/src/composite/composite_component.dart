@@ -66,7 +66,7 @@ mixin CompositeComponent<T extends StatefulWidget> on State<T> implements Docume
   }
 
   DocumentComponent? getChildComponentById(String childId) {
-    return getChildByNodeId(childId)!.component;
+    return getChildByNodeId(childId)?.componentKey.currentState;
   }
 
   @override

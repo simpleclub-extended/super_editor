@@ -5,7 +5,10 @@ import 'package:super_editor/src/core/document.dart';
 import 'package:super_editor/src/core/document_layout.dart';
 import 'package:super_editor/src/core/styles.dart';
 import 'package:super_editor/src/composite/composite_nodes.dart';
+import 'package:super_editor/src/composite/composite_presenter_context.dart';
 import 'package:super_editor/src/infrastructure/_logging.dart';
+
+export 'package:super_editor/src/composite/composite_presenter_context.dart';
 
 /// Information that is provided to a [ComponentBuilder] to
 /// construct an appropriate [DocumentComponent] widget.
@@ -31,10 +34,6 @@ class SingleColumnDocumentComponentContext {
   /// Builds a child [DocumentComponent] for the component that owns this context.
   final ComponentWidgetBuilder buildChildComponent;
 }
-
-/// Finds and creates the component widget that presents the given [node].
-typedef ComponentWidgetBuilder = (GlobalKey<DocumentComponent>, Widget) Function(
-    SingleColumnLayoutComponentViewModel viewModel);
 
 /// Produces [SingleColumnLayoutViewModel]s to be displayed by a
 /// [SingleColumnDocumentLayout].
@@ -380,16 +379,9 @@ typedef ViewModelChangeCallback = void Function({
 
 /// Creates view models and components to display various [DocumentNode]s in a [Document].
 abstract class ComponentBuilder {
-  /// Creates a [SingleColumnLayoutComponentViewModel] with default styles for the given
+  /// Produces a [SingleColumnLayoutComponentViewModel] with default styles for the given
   /// [node], or returns `null` if this builder doesn't apply to the given node.
-  ///
-  /// A [PresenterContext] is provided so that a component with children can create view
-  /// models for their children, too, and include those in the returned view model.
-  SingleColumnLayoutComponentViewModel? createViewModel(
-    PresenterContext presenterContext,
-    Document document,
-    DocumentNode node,
-  );
+  SingleColumnLayoutComponentViewModel? createViewModel(Document document, DocumentNode node);
 
   /// Creates a visual component that renders the given [viewModel],
   /// or returns `null` if this builder doesn't apply to the given [viewModel].
@@ -407,24 +399,6 @@ abstract class ComponentBuilder {
     SingleColumnDocumentComponentContext componentContext,
     SingleColumnLayoutComponentViewModel componentViewModel,
   );
-}
-
-/// A context provided to [ComponentBuilder]s when constructing view models.
-class PresenterContext {
-  const PresenterContext(this._document, this._componentBuilders);
-
-  final Document _document;
-  final List<ComponentBuilder> _componentBuilders;
-
-  SingleColumnLayoutComponentViewModel? createViewModel(DocumentNode node) {
-    for (final builder in _componentBuilders) {
-      final viewModel = builder.createViewModel(this, _document, node);
-      if (viewModel != null) {
-        return viewModel;
-      }
-    }
-    return null;
-  }
 }
 
 /// A single phase of style rules, which are applied in a pipeline to

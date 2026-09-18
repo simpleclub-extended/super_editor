@@ -397,15 +397,14 @@ class _ListItemWithCustomStyleBuilder implements ComponentBuilder {
   final OrderedListNumeralStyle? numeralStyle;
 
   @override
-  SingleColumnLayoutComponentViewModel? createViewModel(
-      PresenterContext context, Document document, DocumentNode node) {
+  SingleColumnLayoutComponentViewModel? createViewModel(Document document, DocumentNode node) {
     if (node is! ListItemNode) {
       return null;
     }
 
     // Use the default component builder to create the view model, because we only want
     // to customize the style.
-    final viewModel = const ListItemComponentBuilder().createViewModel(context, document, node);
+    final viewModel = const ListItemComponentBuilder().createViewModel(document, node);
 
     if (viewModel is UnorderedListItemComponentViewModel && dotStyle != null) {
       viewModel.dotStyle = dotStyle!;

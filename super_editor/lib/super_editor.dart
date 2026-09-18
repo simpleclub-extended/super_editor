@@ -36,15 +36,11 @@ export 'src/default_editor/document_layers/attributed_text_bounds_overlay.dart';
 export 'src/default_editor/document_hardware_keyboard/document_input_keyboard.dart';
 export 'src/default_editor/horizontal_rule.dart';
 export 'src/default_editor/image.dart';
-export 'src/composite/column_component.dart';
-export 'src/composite/composite_nodes.dart';
-export 'src/composite/composite_component.dart';
 export 'src/default_editor/layout_single_column/layout_single_column.dart';
-export 'src/default_editor/layout_single_column/selection_aware_viewmodel.dart';
-export 'src/default_editor/layout_single_column/super_editor_dry_layout.dart';
 export 'src/default_editor/list_items.dart';
 export 'src/default_editor/multi_node_editing.dart';
 export 'src/default_editor/paragraph.dart';
+export 'src/default_editor/layout_single_column/selection_aware_viewmodel.dart';
 export 'src/default_editor/selection_binary.dart';
 export 'src/default_editor/selection_upstream_downstream.dart';
 export 'src/default_editor/super_editor.dart';
@@ -71,7 +67,6 @@ export 'src/infrastructure/content_layers.dart';
 export 'src/infrastructure/documents/document_layers.dart';
 export 'src/infrastructure/documents/document_scroller.dart';
 export 'src/infrastructure/documents/selection_leader_document_layer.dart';
-export 'src/infrastructure/documents/document_selection.dart';
 export 'src/infrastructure/ime_input_owner.dart';
 export 'src/infrastructure/keyboard.dart';
 export 'src/infrastructure/multi_tap_gesture.dart';
@@ -108,6 +103,12 @@ export 'src/super_reader/read_only_document_keyboard_interactor.dart';
 export 'src/super_reader/read_only_document_mouse_interactor.dart';
 export 'src/super_reader/reader_context.dart';
 export 'src/super_reader/super_reader.dart';
+
+// Composite nodes
+export 'src/composite/column_component.dart';
+export 'src/composite/composite_component.dart';
+export 'src/composite/composite_nodes.dart';
+export 'src/infrastructure/documents/document_selection.dart';
 
 // Export from super_text_layout so that downstream clients don't
 // have to add this package to get access to these classes.

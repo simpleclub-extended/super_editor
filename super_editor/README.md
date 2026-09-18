@@ -145,3 +145,53 @@ If your app requires deeper customization than `SuperEditor` provides, you can c
 version of the `SuperEditor` widget by using lower level tools within the `super_editor` package.
 
 See the wiki for more information about how to customize an editor experience.
+
+## Composite nodes (simpleclub fork)
+
+The branch `feat/SC-22570-composite-tables` carries the generic `CompositeNode` infrastructure from
+upstream PR #2830 by Aleksey Garbarev, which builds on Matt Carroll's PR #2765. It landed as a single
+port commit and was adapted to this fork's older base in the commits after it. The exact upstream
+state the port came from is reachable as the tag `composite-port/source-7c7743ed`, and every state of
+this branch that the app adopts gets a `composite-port/<n>` tag.
+
+### Hook sites
+
+Every existing library file the port edits is a hook site that a future upstream sync has to
+re-resolve by hand. The list is derived, never written down, because a written list goes stale the
+first time someone adds a call. Either command produces it, run from `super_editor/`:
+
+```
+git diff simpleclub-stable...feat/SC-22570-composite-tables --stat -- super_editor/lib
+grep -rlE 'CompositeNode|NodePath|PresenterContext' lib --include='*.dart'
+```
+
+The grep needs all three tokens. The port's inline edits insert three unrelated symbol families, and
+five files carry only `PresenterContext`, so a two-token pattern silently misses them.
+
+### Sync tax
+
+The cost of carrying the port is the number of conflicted files this branch adds over the fork's own
+base when upstream is merged. Price both halves with the same command and subtract:
+
+```
+git merge-tree --write-tree --merge-base=$(git merge-base upstream/stable simpleclub-stable) upstream/stable simpleclub-stable
+git merge-tree --write-tree --merge-base=$(git merge-base upstream/stable simpleclub-stable) upstream/stable feat/SC-22570-composite-tables
+```
+
+Count the `CONFLICT` lines in each and take the difference. Re-price it before every sync rather than
+quoting an old figure.
+
+### Three contracts the port relies on and does not state in code
+
+1. A composite's child ids are stable unless the child count or a child's type changes. A child
+   swapped for a same-type node with a new id keeps working, but it loses that child's widget state,
+   because `ChildrenComponentKeyProvider` keys component state by node id.
+2. A cell is isolating and never empty. Its `resolveWhenChildrenAffected` re-creates one paragraph
+   carrying the removed child's id. A cell that returns no children instead is removed from its
+   parent by the next cross-cell deletion.
+3. Every id a structural request creates lives in the request, never in `execute`, so undo and redo
+   replay it identically. The path cache never forgets a deleted id and the composer never validates
+   its selection against the document, so an edit that removes the cell holding the caret has to move
+   the caret in the same `execute` list.
+
+The tests that pin these live under `test/super_editor/composite/`.

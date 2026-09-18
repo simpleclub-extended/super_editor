@@ -108,8 +108,7 @@ class ImageComponentBuilder implements ComponentBuilder {
   const ImageComponentBuilder();
 
   @override
-  SingleColumnLayoutComponentViewModel? createViewModel(
-      PresenterContext context, Document document, DocumentNode node) {
+  SingleColumnLayoutComponentViewModel? createViewModel(Document document, DocumentNode node) {
     if (node is! ImageNode) {
       return null;
     }

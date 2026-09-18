@@ -5,6 +5,7 @@ import 'package:flutter/widgets.dart';
 import 'package:super_editor/src/core/document.dart';
 import 'package:super_editor/src/core/document_layout.dart';
 import 'package:super_editor/src/core/document_selection.dart';
+import 'package:super_editor/src/composite/composite_children_key_provider.dart';
 import 'package:super_editor/src/composite/composite_component.dart';
 import 'package:super_editor/src/composite/composite_nodes.dart';
 import 'package:super_editor/src/infrastructure/_logging.dart';
@@ -668,7 +669,12 @@ class _SingleColumnDocumentLayoutState extends State<SingleColumnDocumentLayout>
         editorLayoutLog.info('WARNING: found component but it\'s not a CompositeComponent: $childId, state: $state');
         return null;
       }
-      state = state.getChildComponentById(childId);
+      final childComponent = state.getChildComponentById(childId);
+      if (childComponent == null) {
+        editorLayoutLog.info('WARNING: composite component has no child for node ID: $childId');
+        return null;
+      }
+      state = childComponent;
     }
     if (state is! DocumentComponent) {
       editorLayoutLog
@@ -682,25 +688,6 @@ class _SingleColumnDocumentLayoutState extends State<SingleColumnDocumentLayout>
 
     return state;
   }
-
-  @override
-  DocumentComponent? getComponentByNodePath(NodePath nodePath) {
-    var component = getComponentByNodeId(nodePath.rootNodeId);
-    for (final childId in nodePath.skip(1)) {
-      if (component is! DocumentComponent) {
-        final warningText =
-            'WARNING: found child component but it\'s not a DocumentComponent: ${component.runtimeType}';
-        editorLayoutLog.info(warningText);
-        if (kDebugMode) {
-          throw Exception(warningText);
-        }
-        return null;
-      }
-      component = (component as CompositeComponent).getChildComponentById(childId);
-    }
-    return component;
-  }
-
   @override
   Offset getDocumentOffsetFromAncestorOffset(Offset ancestorOffset, [RenderObject? ancestor]) {
     return (boxContext.findRenderObject() as RenderBox).globalToLocal(ancestorOffset, ancestor: ancestor);
@@ -775,7 +762,7 @@ class _SingleColumnDocumentLayoutState extends State<SingleColumnDocumentLayout>
     final newNodeIds = <GlobalKey, String>{};
     _topToBottomComponentKeys.clear();
 
-    final childComponentProvider = _ChildrenComponentKeyProvider(_parentNodeIdToChildrenComponentKeys);
+    final childComponentProvider = ChildrenComponentKeyProvider(_parentNodeIdToChildrenComponentKeys);
 
     final viewModel = widget.presenter.viewModel;
     editorLayoutLog.fine("Rendering layout view model: ${viewModel.hashCode}");
@@ -1118,44 +1105,5 @@ class _Component extends StatelessWidget {
       ),
       child: component,
     );
-  }
-}
-
-class _ChildrenComponentKeyProvider {
-  _ChildrenComponentKeyProvider(this._existing);
-
-  final Map<String, Map<String, GlobalKey<DocumentComponent>>> _existing;
-  final _new = <String, Map<String, GlobalKey<DocumentComponent>>>{};
-
-  /// Returns a [GlobalKey] for the component at [nodeId] within [rootNodeId].
-  /// Reuses existing keys when possible, otherwise creates and registers a new one.
-  void createKeyForNode(String rootNodeId, String nodeId) {
-    // 1. Reuse from previous render
-    // 2. Reuse from current render
-    // 3. Create new if not found
-    final key = _existing[rootNodeId]?[nodeId] ?? GlobalKey<DocumentComponent>();
-
-    // 4. Register it in _new
-    final rootMap = _new.putIfAbsent(rootNodeId, () => <String, GlobalKey<DocumentComponent>>{});
-    rootMap[nodeId] = key;
-  }
-
-  GlobalKey<DocumentComponent> getKey(String rootNodeId, String nodeId) {
-    return _existing[rootNodeId]?[nodeId] ?? _new[rootNodeId]![nodeId]!;
-  }
-
-  void registerComponentKeysForChildren(String rootNodeId, SingleColumnLayoutComponentViewModel viewModel) {
-    if (viewModel is CompositeNodeViewModel) {
-      for (final child in viewModel.children) {
-        createKeyForNode(rootNodeId, child.nodeId);
-        registerComponentKeysForChildren(rootNodeId, child);
-      }
-    }
-  }
-
-  void replaceExisting() {
-    _existing.clear();
-    _existing.addAll(_new);
-    _new.clear();
   }
 }

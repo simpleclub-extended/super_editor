@@ -479,6 +479,7 @@ Updating drag selection:
     );
 
     selectRegion(
+      document: widget.readerContext.document,
       documentLayout: _docLayout,
       baseOffsetInDocument: dragStartInDoc,
       extentOffsetInDocument: dragEndInDoc,

@@ -40,8 +40,8 @@ class _SuperReaderDemoState extends State<SuperReaderDemo> {
     }
 
     final textToCopy = extractTextFromSelection(
-      document: _editor.document,
-      documentSelection: _editor.composer.selection!,
+      document: _document,
+      documentSelection: _selection.value!,
     );
     // TODO: figure out a general approach for asynchronous behaviors that
     //       need to be carried out in response to user input.

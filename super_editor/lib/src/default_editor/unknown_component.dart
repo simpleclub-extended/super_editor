@@ -8,12 +8,8 @@ class UnknownComponentBuilder implements ComponentBuilder {
   const UnknownComponentBuilder();
 
   @override
-  SingleColumnLayoutComponentViewModel? createViewModel(
-    PresenterContext context,
-    Document document,
-    DocumentNode node,
-  ) {
-    return _UnknownViewModel(
+  SingleColumnLayoutComponentViewModel? createViewModel(Document document, DocumentNode node) {
+    return _UnkownViewModel(
       nodeId: node.id,
       padding: EdgeInsets.zero,
     );

@@ -597,11 +597,7 @@ class _UnselectableHrComponentBuilder implements ComponentBuilder {
   const _UnselectableHrComponentBuilder();
 
   @override
-  SingleColumnLayoutComponentViewModel? createViewModel(
-    PresenterContext context,
-    Document document,
-    DocumentNode node,
-  ) {
+  SingleColumnLayoutComponentViewModel? createViewModel(Document document, DocumentNode node) {
     // This builder can work with the standard horizontal rule view model, so
     // we'll defer to the standard horizontal rule builder.
     return null;
@@ -760,11 +756,7 @@ class _ButtonComponentBuilder implements ComponentBuilder {
   const _ButtonComponentBuilder();
 
   @override
-  SingleColumnLayoutComponentViewModel? createViewModel(
-    PresenterContext context,
-    Document document,
-    DocumentNode node,
-  ) {
+  SingleColumnLayoutComponentViewModel? createViewModel(Document document, DocumentNode node) {
     if (node is! _ButtonNode) {
       return null;
     }

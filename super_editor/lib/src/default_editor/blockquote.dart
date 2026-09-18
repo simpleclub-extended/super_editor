@@ -25,8 +25,7 @@ class BlockquoteComponentBuilder implements ComponentBuilder {
   const BlockquoteComponentBuilder();
 
   @override
-  SingleColumnLayoutComponentViewModel? createViewModel(
-      PresenterContext context, Document document, DocumentNode node) {
+  SingleColumnLayoutComponentViewModel? createViewModel(Document document, DocumentNode node) {
     if (node is! ParagraphNode) {
       return null;
     }

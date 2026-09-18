@@ -1,8 +1,6 @@
-import 'dart:ui';
-
+import 'package:super_editor/src/composite/composite_selection_extraction.dart';
 import 'package:super_editor/src/core/document.dart';
 import 'package:super_editor/src/core/document_selection.dart';
-import 'package:super_editor/src/composite/composite_nodes.dart';
 
 /// Given a [DocumentSelection], which might span text and non-text content, extracts
 /// all text from that selection as an un-styled `String`.
@@ -12,17 +10,17 @@ String extractTextFromSelection({
 }) {
   final basePath = document.getNodePathById(documentSelection.base.nodeId)!;
   final extentPath = document.getNodePathById(documentSelection.extent.nodeId)!;
-  final basePosition = _projectToParentIfNeeded(
+  final basePosition = projectPositionToParentIfNeeded(
     basePath.rootNodeId,
     basePath,
     documentSelection.base.nodePosition,
   );
-  final extentPosition = _projectToParentIfNeeded(
+  final extentPosition = projectPositionToParentIfNeeded(
     extentPath.rootNodeId,
     extentPath,
     documentSelection.extent.nodePosition,
   );
-  final selectedNodes = _getRootNodes(document, documentSelection);
+  final selectedNodes = getRootNodesInSelection(document, documentSelection);
 
   final buffer = StringBuffer();
   for (int i = 0; i < selectedNodes.length; ++i) {
@@ -64,34 +62,4 @@ String extractTextFromSelection({
     }
   }
   return buffer.toString();
-}
-
-NodePosition _projectToParentIfNeeded(String rootNodeId, NodePath path, NodePosition position) {
-  if (path.nodeId == rootNodeId) {
-    return position;
-  } else {
-    return CompositeNodePosition.projectPositionIntoParent(rootNodeId, path, position);
-  }
-}
-
-List<DocumentNode> _getRootNodes(Document doc, DocumentSelection selection) {
-  final basePath = doc.getNodePathById(selection.base.nodeId)!;
-  final extentPath = doc.getNodePathById(selection.extent.nodeId)!;
-
-  final result = <DocumentNode>[];
-  final isDownstream = doc.getAffinityBetweenPaths(basePath, extentPath) == TextAffinity.downstream;
-  String? nodeId = isDownstream ? basePath.rootNodeId : extentPath.rootNodeId;
-  final untilNodeId = isDownstream ? extentPath.rootNodeId : basePath.rootNodeId;
-
-  result.add(doc.getNodeById(nodeId)!);
-
-  while (nodeId != null && nodeId != untilNodeId) {
-    final node = doc.getNodeAfterById(nodeId, mode: NodeTraverseMode.sameParent);
-    if (node != null) {
-      result.add(node);
-    }
-    nodeId = node?.id;
-  }
-
-  return result;
 }

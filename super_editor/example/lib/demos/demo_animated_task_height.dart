@@ -72,11 +72,7 @@ class AnimatedTaskComponentBuilder implements ComponentBuilder {
   const AnimatedTaskComponentBuilder();
 
   @override
-  SingleColumnLayoutComponentViewModel? createViewModel(
-    PresenterContext context,
-    Document document,
-    DocumentNode node,
-  ) {
+  SingleColumnLayoutComponentViewModel? createViewModel(Document document, DocumentNode node) {
     // This builder can work with the standard task view model, so
     // we'll defer to the standard task builder.
     return null;
