@@ -85,5 +85,30 @@ void main() {
       expectExtentAt(context.composer.selection, 'p1', 11);
       expect(context.composer.selection!.base.nodeId, '3');
     });
+
+    testWidgetsOnMac('selects all with CMD + A when composites are the first and last nodes', (tester) async {
+      final context = await tester
+          .createDocument()
+          .withCustomContent(MutableDocument(nodes: [
+            TestTableNode(id: 'table1', children: [
+              TestCellNode(id: 'cell1', children: [ParagraphNode(id: 'p1', text: AttributedText('First'))]),
+            ]),
+            TestTableNode(id: 'table2', children: [
+              TestCellNode(id: 'cell2', children: [ParagraphNode(id: 'p2', text: AttributedText('Last'))]),
+            ]),
+          ]))
+          .withAddedComponents([TestCompositeComponentBuilder()])
+          .autoFocus(true)
+          .forDesktop(inputSource: TextInputSource.keyboard)
+          .pump();
+
+      await tester.placeCaretInParagraph('p1', 0);
+      await tester.pressCmdA();
+
+      final selection = context.composer.selection!;
+      expect(selection.base, const DocumentPosition(nodeId: 'p1', nodePosition: TextNodePosition(offset: 0)));
+      expect(selection.extent, const DocumentPosition(nodeId: 'p2', nodePosition: TextNodePosition(offset: 4)));
+      expect(tester.takeException(), isNull);
+    });
   });
 }

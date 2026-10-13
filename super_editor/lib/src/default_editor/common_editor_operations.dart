@@ -223,11 +223,11 @@ class CommonEditorOperations {
           base: DocumentPosition(
             nodeId: document.first.id,
             nodePosition: document.first.beginningPosition,
-          ),
+          ).toLeafPosition(),
           extent: DocumentPosition(
             nodeId: document.last.id,
             nodePosition: document.last.endPosition,
-          ),
+          ).toLeafPosition(),
         ),
         SelectionChangeType.expandSelection,
         SelectionReason.userInteraction,

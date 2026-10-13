@@ -1,5 +1,6 @@
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
+import 'package:super_editor/src/composite/composite_nodes.dart';
 import 'package:super_editor/src/core/document_composer.dart';
 import 'package:super_editor/src/core/document_layout.dart';
 import 'package:super_editor/src/core/editor.dart';
@@ -609,11 +610,11 @@ bool selectAll(Document document, ValueNotifier<DocumentSelection?> selection) {
     base: DocumentPosition(
       nodeId: document.first.id,
       nodePosition: document.first.beginningPosition,
-    ),
+    ).toLeafPosition(),
     extent: DocumentPosition(
       nodeId: document.last.id,
       nodePosition: document.last.endPosition,
-    ),
+    ).toLeafPosition(),
   );
 
   return true;
