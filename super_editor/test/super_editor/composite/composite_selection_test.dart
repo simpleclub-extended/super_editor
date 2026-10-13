@@ -1,3 +1,4 @@
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_test_robots/flutter_test_robots.dart';
 import 'package:flutter_test_runners/flutter_test_runners.dart';
@@ -86,6 +87,39 @@ void main() {
       expect(context.composer.selection!.base.nodeId, '3');
     });
 
+    testWidgetsOnMac('expands the selection into a composite child created in the same frame', (tester) async {
+      final context = await tester
+          .createDocument()
+          .withCustomContent(paragraphThenCellsThenParagraphDoc(cellCount: 1))
+          .withAddedComponents([_LayoutTimeCompositeComponentBuilder()])
+          .forDesktop(inputSource: TextInputSource.keyboard)
+          .pump();
+      await tester.placeCaretInParagraph('p1', 0);
+
+      final table = context.document.getNodeById('table') as TestTableNode;
+      context.editor.execute([
+        ReplaceNodeRequest(
+          existingNodeId: 'table',
+          newNode: table.copyWithChildren([
+            ...table.children,
+            TestCellNode(id: 'cell3', children: [ParagraphNode(id: 'p3', text: AttributedText('Cell 3 text'))]),
+          ]),
+        ),
+        const ChangeSelectionRequest(
+          DocumentSelection(
+            base: DocumentPosition(nodeId: 'p3', nodePosition: TextNodePosition(offset: 0)),
+            extent: DocumentPosition(nodeId: 'p3', nodePosition: TextNodePosition(offset: 4)),
+          ),
+          SelectionChangeType.expandSelection,
+          SelectionReason.userInteraction,
+        ),
+      ]);
+      await tester.pump();
+
+      expect(tester.takeException(), isNull);
+      expectExtentAt(context.composer.selection, 'p3', 4);
+    });
+
     testWidgetsOnMac('selects all with CMD + A when composites are the first and last nodes', (tester) async {
       final context = await tester
           .createDocument()
@@ -111,4 +145,15 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   });
+}
+
+class _LayoutTimeCompositeComponentBuilder extends TestCompositeComponentBuilder {
+  @override
+  Widget? createComponent(
+    SingleColumnDocumentComponentContext componentContext,
+    SingleColumnLayoutComponentViewModel componentViewModel,
+  ) {
+    final component = super.createComponent(componentContext, componentViewModel);
+    return component == null ? null : LayoutBuilder(builder: (_, __) => component);
+  }
 }

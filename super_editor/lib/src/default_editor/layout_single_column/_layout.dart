@@ -905,6 +905,9 @@ class _SingleColumnDocumentLayoutState extends State<SingleColumnDocumentLayout>
     // Ask each CompositeNode, if they would like to have caret inside selection
     for (var i = 0; i < path.length - 1; i += 1) {
       final component = getComponentByNodeId(path[i]);
+      if (component == null) {
+        return true;
+      }
       if (component is! CompositeComponent) {
         throw Exception('Unexpected component "${component.runtimeType}". CompositeComponent was expected');
       }
